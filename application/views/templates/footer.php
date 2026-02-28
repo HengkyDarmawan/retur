@@ -55,22 +55,30 @@
 
     <script>
         $(document).ready(function() {
-            // Inisialisasi DataTables
-            $('#dataTable').DataTable();
+            // 1. Inisialisasi DataTables
+            if ($('#dataTable').length > 0) {
+                $('#dataTable').DataTable();
+            }
 
-            // SweetAlert Flash Data
+            // 2. Logika SweetAlert untuk FlashData (Redirect)
             const flashData = "<?= $this->session->flashdata('message'); ?>";
             const type = "<?= $this->session->flashdata('type'); ?>";
+            
             if (flashData) {
+                let title = 'Informasi';
+                if (type === 'success') title = 'Berhasil!';
+                if (type === 'error') title = 'Gagal!';
+                if (type === 'warning') title = 'Peringatan!';
+
                 Swal.fire({
-                    title: type === 'success' ? 'Berhasil!' : 'Gagal!',
+                    title: title,
                     text: flashData,
                     icon: type,
                     confirmButtonColor: '#4e73df'
                 });
             }
 
-            // Tombol Hapus
+            // 3. Logika Tombol Hapus (Confirm Dialog)
             $(document).on('click', '.btn-delete', function(e) {
                 e.preventDefault();
                 const href = $(this).attr('href');
@@ -81,68 +89,55 @@
                     showCancelButton: true,
                     confirmButtonColor: '#d33',
                     cancelButtonColor: '#3085d6',
-                    confirmButtonText: 'Ya, Hapus!'
+                    confirmButtonText: 'Ya, Hapus!',
+                    cancelButtonText: 'Batal'
                 }).then((result) => {
                     if (result.isConfirmed) {
                         window.location.href = href;
                     }
                 });
             });
-        });
-    </script>
-    <script>
-        $('.check-access').on('click', function() {
-            const roleId = $(this).data('role');
-            const submenuId = $(this).data('submenu');
-            const type = $(this).data('type');
 
-            $.ajax({
-                url: "<?= base_url('admin/changeaccess'); ?>",
-                type: 'post',
-                data: {
-                    roleId: roleId,
-                    submenuId: submenuId,
-                    type: type
-                },
-                success: function() {
-                    // Tampilkan SweetAlert kecil (Toast) agar tidak mengganggu
-                    const Toast = Swal.mixin({
-                        toast: true,
-                        position: 'top-end',
-                        showConfirmButton: false,
-                        timer: 1500,
-                        timerProgressBar: true
-                    });
+            // 4. Logika Ubah Akses Role (AJAX + CSRF)
+            $('.check-access').on('click', function() {
+                const roleId = $(this).data('role');
+                const submenuId = $(this).data('submenu');
+                const typeAccess = $(this).data('type');
 
-                    Toast.fire({
-                        icon: 'success',
-                        title: 'Akses berhasil diperbarui'
-                    });
-                }
-            });
-        });
-        $('.check-access').on('click', function() {
-            const roleId = $(this).data('role');
-            const submenuId = $(this).data('submenu');
-            const type = $(this).data('type');
+                // Ambil token CSRF terbaru dari PHP
+                const csrfName = '<?= $this->security->get_csrf_token_name(); ?>';
+                const csrfHash = '<?= $this->security->get_csrf_hash(); ?>';
 
-            // Tambahkan pengambilan nama dan hash token CSRF
-            const csrfName = '<?= $this->security->get_csrf_token_name(); ?>';
-            const csrfHash = '<?= $this->security->get_csrf_hash(); ?>';
+                $.ajax({
+                    url: "<?= base_url('admin/changeaccess'); ?>",
+                    type: 'post',
+                    data: {
+                        [csrfName]: csrfHash, 
+                        roleId: roleId,
+                        submenuId: submenuId,
+                        type: typeAccess
+                    },
+                    success: function() {
+                        const Toast = Swal.mixin({
+                            toast: true,
+                            position: 'top-end',
+                            showConfirmButton: false,
+                            timer: 1000,
+                            timerProgressBar: true
+                        });
 
-            $.ajax({
-                url: "<?= base_url('admin/changeaccess'); ?>",
-                type: 'post',
-                data: {
-                    [csrfName]: csrfHash, // Sertakan token di sini
-                    roleId: roleId,
-                    submenuId: submenuId,
-                    type: type
-                },
-                success: function() {
-                    // Toast Success Anda tetap di sini...
-                    location.reload(); // Reload diperlukan agar token CSRF baru di-generate
-                }
+                        Toast.fire({
+                            icon: 'success',
+                            title: 'Akses berhasil diperbarui'
+                        }).then(() => {
+                            // Reload wajib agar token CSRF & sidebar terupdate
+                            location.reload(); 
+                        });
+                    },
+                    error: function() {
+                        Swal.fire('Error', 'Gagal mengubah akses. Token mungkin kadaluwarsa, silakan refresh.', 'error');
+                    }
+                });
             });
         });
     </script>

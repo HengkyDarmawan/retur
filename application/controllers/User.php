@@ -15,7 +15,7 @@ class User extends MY_Controller {
     public function edit()
     {
         $data['title'] = 'Edit Profile';
-        $data['user'] = $this->user; // Pastikan ini mengambil data user yang sedang login
+        $data['user'] = $this->user; // Data user dari MY_Controller
 
         $this->load->library('form_validation');
         $this->form_validation->set_rules('name', 'Full Name', 'required|trim');
@@ -24,7 +24,6 @@ class User extends MY_Controller {
             $this->_render('user/edit', $data);
         } else {
             $name = $this->input->post('name');
-            // PENTING: Gunakan ID dari session, jangan ambil dari input post untuk urusan WHERE
             $user_id = $data['user']['id']; 
 
             // 1. Cek Upload Gambar
@@ -39,11 +38,9 @@ class User extends MY_Controller {
 
                 if ($this->upload->do_upload('image')) {
                     $upload_data = $this->upload->data();
-                    
-                    // RESIZE & WEBP (Sesuai optimasi sebelumnya)
                     $file_path = $upload_data['full_path'];
                     
-                    // Resize dulu
+                    // Resize
                     $this->load->library('image_lib');
                     $conf_res['image_library'] = 'gd2';
                     $conf_res['source_image'] = $file_path;
@@ -52,7 +49,7 @@ class User extends MY_Controller {
                     $this->image_lib->initialize($conf_res);
                     $this->image_lib->resize();
 
-                    // Convert WebP
+                    // Convert WebP (Fungsi helper yang kita buat sebelumnya)
                     $new_webp = convert_to_webp($file_path);
 
                     // Hapus Foto Lama (Kecuali default)
@@ -61,39 +58,35 @@ class User extends MY_Controller {
                         unlink(FCPATH . 'assets/img/profile/' . $old_image);
                     }
 
-                    // Set kolom image untuk diupdate
                     $this->db->set('image', $new_webp);
                 }
             }
 
-            // 2. Eksekusi Update dengan WHERE yang SANGAT SPESIFIK
+            // 2. Eksekusi Update
             $this->db->set('name', $name);
-            $this->db->where('id', $user_id); // Menggunakan ID Unik, bukan username/inputan
+            $this->db->where('id', $user_id);
             
-            // Simpan data lama untuk Log
             $old_data = $data['user'];
-            
             $this->db->update('user');
 
-            // 3. Catat Log Aktivitas
+            // 3. Log Aktivitas
             $new_data = $this->db->get_where('user', ['id' => $user_id])->row_array();
             create_log('UPDATE', 'user', $user_id, $old_data, $new_data);
 
-            // SweetAlert2
-            $this->session->set_flashdata('swal_icon', 'success');
-            $this->session->set_flashdata('swal_title', 'Berhasil!');
-            $this->session->set_flashdata('swal_text', 'Profil Anda saja yang diperbarui.');
+            // SINKRONISASI DENGAN FOOTER ANDA (Gunakan 'type' dan 'message')
+            $this->session->set_flashdata('type', 'success');
+            $this->session->set_flashdata('message', 'Profil Anda berhasil diperbarui.');
             
             redirect('user');
         }
     }
+    
     public function changepassword()
     {
         $data['title'] = 'Change Password';
         $data['user'] = $this->user;
 
         $this->load->library('form_validation');
-
         $this->form_validation->set_rules('current_password', 'Current Password', 'required|trim');
         $this->form_validation->set_rules('new_password1', 'New Password', 'required|trim|min_length[3]|matches[new_password2]');
         $this->form_validation->set_rules('new_password2', 'Confirm New Password', 'required|trim|matches[new_password1]');
@@ -104,37 +97,30 @@ class User extends MY_Controller {
             $current_password = $this->input->post('current_password');
             $new_password = $this->input->post('new_password1');
 
-            // 1. Cek apakah password saat ini benar
+            // 1. Cek password lama
             if (!password_verify($current_password, $data['user']['password'])) {
-                $this->session->set_flashdata('swal_icon', 'error');
-                $this->session->set_flashdata('swal_title', 'Password Salah!');
-                $this->session->set_flashdata('swal_text', 'Password saat ini tidak sesuai.');
+                $this->session->set_flashdata('type', 'error');
+                $this->session->set_flashdata('message', 'Password lama tidak sesuai!');
                 redirect('user/changepassword');
             } else {
-                // 2. Cek agar password baru tidak sama dengan password lama
+                // 2. Cek agar tidak sama dengan yang lama
                 if ($current_password == $new_password) {
-                    $this->session->set_flashdata('swal_icon', 'warning');
-                    $this->session->set_flashdata('swal_title', 'Opps!');
-                    $this->session->set_flashdata('swal_text', 'Password baru tidak boleh sama dengan password lama.');
+                    $this->session->set_flashdata('type', 'warning');
+                    $this->session->set_flashdata('message', 'Password baru tidak boleh sama dengan yang lama.');
                     redirect('user/changepassword');
                 } else {
-                    // 3. Proses Update
+                    // 3. Update Password
                     $password_hash = password_hash($new_password, PASSWORD_DEFAULT);
-
-                    // Catat data sebelum diubah untuk log
-                    $old_data = $data['user'];
 
                     $this->db->set('password', $password_hash);
                     $this->db->where('id', $data['user']['id']);
                     $this->db->update('user');
 
-                    // 4. Activity Log (Sangat penting untuk audit keamanan)
-                    $new_data = $this->db->get_where('user', ['id' => $data['user']['id']])->row_array();
+                    // 4. Log Aktivitas (Sembunyikan password di log)
                     create_log('UPDATE', 'user', $data['user']['id'], ['password' => '[HIDDEN]'], ['password' => '[CHANGED]']);
 
-                    $this->session->set_flashdata('swal_icon', 'success');
-                    $this->session->set_flashdata('swal_title', 'Berhasil!');
-                    $this->session->set_flashdata('swal_text', 'Password Anda telah diperbarui.');
+                    $this->session->set_flashdata('type', 'success');
+                    $this->session->set_flashdata('message', 'Password Anda telah berhasil diperbarui.');
                     redirect('user');
                 }
             }
