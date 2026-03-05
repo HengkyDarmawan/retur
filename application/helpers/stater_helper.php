@@ -14,29 +14,42 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Mengecualikan Sabtu, Minggu, dan hari libur nasional di tabel m_holidays
  */
 if (!function_exists('count_working_days')) {
-    function count_working_days($start_date) {
-        $ci = get_instance();
-        $start = new DateTime($start_date);
-        $end = new DateTime(); // Sampai hari ini
+    function count_working_days($start_date, $end_date = null) {
+        $ci =& get_instance();
         
-        // Ambil daftar libur dari database
-        $holidays = $ci->db->select('holiday_date')->get('m_holidays')->result_array();
-        $holiday_list = array_column($holidays, 'holiday_date');
+        // Buat objek DateTime dan paksa waktunya ke jam 00:00:00 agar murni hitung tanggal
+        $start = new DateTime(date('Y-m-d', strtotime($start_date)));
+        
+        if ($end_date) {
+            $end = new DateTime(date('Y-m-d', strtotime($end_date)));
+        } else {
+            $end = new DateTime(date('Y-m-d')); // Hari ini jam 00:00:00
+        }
+        
+        // Tambahkan 1 hari agar inclusive (sampai hari ini ikut dihitung)
+        $end->modify('+1 day'); 
+
+        $interval = new DateInterval('P1D');
+        $periods = new DatePeriod($start, $interval, $end);
+
+        $holidays = [];
+        $query = $ci->db->select('holiday_date')->get('m_holidays')->result_array();
+        foreach ($query as $h) {
+            $holidays[] = $h['holiday_date'];
+        }
 
         $working_days = 0;
-        
-        // Iterasi hari demi hari
-        while ($start <= $end) {
-            $day_of_week = $start->format('N'); // 1 (Senin) s/d 7 (Minggu)
-            $current_date = $start->format('Y-m-d');
+        foreach ($periods as $period) {
+            $day_of_week = $period->format('N'); 
+            $current_date = $period->format('Y-m-d');
 
-            // Syarat: Bukan Sabtu (6), Bukan Minggu (7), dan tidak terdaftar di m_holidays
-            if ($day_of_week < 6 && !in_array($current_date, $holiday_list)) {
+            if ($day_of_week < 6 && !in_array($current_date, $holidays)) {
                 $working_days++;
             }
-            $start->modify('+1 day');
         }
-        return $working_days;
+
+        // Return: Hari diterima dianggap hari ke-0
+        return ($working_days > 0) ? $working_days - 1 : 0;
     }
 }
 /**

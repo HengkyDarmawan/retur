@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Generation Time: Mar 05, 2026 at 04:15 AM
+-- Generation Time: Mar 05, 2026 at 11:33 AM
 -- Server version: 10.4.27-MariaDB
 -- PHP Version: 7.4.33
 
@@ -72,6 +72,15 @@ CREATE TABLE `m_holidays` (
   `holiday_date` date NOT NULL,
   `description` varchar(100) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data for table `m_holidays`
+--
+
+INSERT INTO `m_holidays` (`id`, `holiday_date`, `description`) VALUES
+(1, '2026-12-25', 'Libur Natal'),
+(2, '2026-03-20', 'Libur Lebaran'),
+(3, '2026-03-21', 'Libur Lebaran');
 
 -- --------------------------------------------------------
 
@@ -190,16 +199,6 @@ CREATE TABLE `tr_returns` (
   `updated_by` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
---
--- Dumping data for table `tr_returns`
---
-
-INSERT INTO `tr_returns` (`id`, `return_number`, `order_number`, `store_id`, `platform_id`, `type_id`, `customer_name`, `customer_wa`, `purchase_date`, `received_date`, `courier_id`, `receipt_number`, `shipping_date`, `status`, `shipping_address`, `receiver_info`, `current_keterangan`, `evidence_photo`, `evidence_video`, `created_at`, `updated_at`, `created_by`, `updated_by`) VALUES
-(15, 'RET-20260304-2585-0001', 'INV/20220119/MPL/1962222585', 1, 1, 1, 'Chandra Zulhidaya', '6282186629996', '2025-12-08', '2026-01-21', 1, '010440008373526', '2026-03-04', 'completed', 'aa', NULL, 'aa', '0dbbdb9d085774ae6b45c3125a551596.webp', 'ef227d6fa81642021b3d941621804a0c.mp4', '2026-03-04 14:25:28', '2026-03-04 14:31:40', 4, NULL),
-(16, 'RET-20260304-2585-0002', 'INV/20220119/MPL/1962222585', 1, 2, 1, 'Chandra Zulhidaya', '6282186629996', '2026-03-03', '2026-03-04', NULL, NULL, NULL, 'received', NULL, NULL, 'adsa', '719956ed2c0ae42b74818cea746b9df6.webp', NULL, '2026-03-04 14:59:37', '2026-03-04 14:59:37', 4, NULL),
-(17, 'RET-20260304-2585-0003', 'INV/20220119/MPL/1962222585', 2, 2, 1, 'Chandra Zulhidaya', '6282186629996', '2026-03-05', '2024-12-11', NULL, NULL, NULL, 'received', NULL, NULL, 'dsad', 'ccce8ea00784e0bf48617d601fa05942.webp,f1490c1e1dceb0e47941436df21312c1.webp,8a90ac0c5476e1c7f934130ae5c60b81.webp', '98712af3bbffeb76810729642e43dc96.mp4', '2026-03-04 15:23:53', '2026-03-04 15:23:53', 4, NULL),
-(18, 'RET-20260304-MXP2-0004', '240921HD26MXP2', 1, 2, 1, 'Hengky', '6282186629996', '2026-03-02', '2026-02-27', NULL, NULL, NULL, 'received', NULL, NULL, 'rusakkk', NULL, NULL, '2026-03-04 16:26:32', '2026-03-04 16:26:32', 2, NULL);
-
 -- --------------------------------------------------------
 
 --
@@ -211,26 +210,10 @@ CREATE TABLE `tr_return_history` (
   `return_id` int(11) NOT NULL,
   `status` varchar(50) NOT NULL,
   `keterangan` text DEFAULT NULL,
+  `evidence_files` text DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp(),
   `created_by` int(11) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `tr_return_history`
---
-
-INSERT INTO `tr_return_history` (`id`, `return_id`, `status`, `keterangan`, `created_at`, `created_by`) VALUES
-(74, 15, 'received', 'Barang diterima dan diinput ke sistem.', '2026-02-02 14:25:28', 4),
-(75, 15, 'checking', 'cekk', '2026-02-03 14:27:14', 4),
-(76, 15, 'to_vendor', 'ke vendor\r\n', '2026-02-04 14:27:56', 4),
-(77, 15, 'processing', 'Update status ke processing', '2026-02-16 14:28:15', 4),
-(78, 15, 'from_vendor', 'aaa', '2026-03-02 14:28:54', 4),
-(79, 15, 'ready', 'Update status ke ready', '2026-03-04 14:31:00', 4),
-(80, 15, 'shipped', 'Update status ke shipped', '2026-03-04 14:31:09', 4),
-(81, 15, 'completed', 'Update status ke completed', '2026-03-04 14:31:40', 4),
-(82, 16, 'received', 'Barang diterima dan diinput ke sistem.', '2026-03-04 14:59:37', 4),
-(83, 17, 'received', 'Barang diterima dan diinput ke sistem.', '2026-03-04 15:23:53', 4),
-(84, 18, 'received', 'Barang diterima dan diinput ke sistem.', '2026-03-04 16:26:32', 2);
 
 -- --------------------------------------------------------
 
@@ -246,16 +229,6 @@ CREATE TABLE `tr_return_items` (
   `warranty_expiry` date DEFAULT NULL,
   `created_at` datetime DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
-
---
--- Dumping data for table `tr_return_items`
---
-
-INSERT INTO `tr_return_items` (`id`, `return_id`, `product_name`, `vendor_id`, `warranty_expiry`, `created_at`) VALUES
-(15, 15, 'SSD MSI M390 500GB', 1, '2026-06-08', '2026-03-04 14:25:28'),
-(16, 16, 'SSD MSI M390 500GB', 1, '2027-03-03', '2026-03-04 14:59:37'),
-(17, 17, 'Gamepad Rexus Daxa Asteria AX1 - Wireless Gaming Controller PC/ PS/ Android Variasi: Hitam', 2, '2027-03-05', '2026-03-04 15:23:53'),
-(18, 18, 'SSD MSI M390 500GB', 2, '2027-03-02', '2026-03-04 16:26:32');
 
 -- --------------------------------------------------------
 
@@ -318,14 +291,16 @@ INSERT INTO `user_access_control` (`id`, `role_id`, `submenu_id`, `can_view`, `c
 (6, 3, 6, 1, 0, 0, 0, 0, 0, 0),
 (7, 3, 2, 1, 0, 0, 0, 0, 0, 0),
 (8, 3, 11, 1, 0, 0, 0, 0, 0, 0),
-(9, 9, 14, 1, 1, 1, 1, 1, 1, 1),
+(9, 9, 14, 1, 1, 1, 1, 0, 0, 0),
 (10, 9, 5, 0, 0, 0, 0, 0, 0, 0),
-(11, 9, 15, 1, 1, 1, 1, 1, 1, 1),
+(11, 9, 15, 1, 1, 1, 1, 0, 0, 0),
 (12, 9, 10, 1, 1, 1, 0, 0, 0, 0),
 (13, 9, 16, 1, 1, 1, 0, 0, 0, 0),
 (14, 9, 17, 1, 1, 1, 0, 0, 0, 0),
 (15, 9, 18, 1, 1, 1, 1, 0, 0, 0),
-(16, 9, 19, 1, 1, 1, 1, 0, 0, 0);
+(16, 9, 19, 1, 1, 1, 1, 0, 0, 0),
+(17, 9, 20, 1, 1, 1, 1, 0, 0, 0),
+(18, 9, 21, 1, 1, 1, 1, 0, 0, 0);
 
 -- --------------------------------------------------------
 
@@ -392,7 +367,11 @@ INSERT INTO `user_log` (`id`, `user_id`, `action`, `table_name`, `data_id`, `dat
 (39, 2, 'UPDATE', 'm_stores', 2, '{\"id\":\"2\",\"store_name\":\"Jaya PRO\",\"store_logo\":null,\"created_at\":\"2026-03-03 12:27:03\",\"created_by\":null}', '{\"store_name\":\"Jaya PRO1\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36', '2026-03-03 06:27:07'),
 (40, 2, 'UPDATE', 'm_stores', 2, '{\"id\":\"2\",\"store_name\":\"Jaya PRO1\",\"store_logo\":null,\"created_at\":\"2026-03-03 12:27:03\",\"created_by\":null}', '{\"store_name\":\"Jaya PRO\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36', '2026-03-03 06:27:11'),
 (41, 2, 'CREATE', 'm_stores', 3, NULL, '{\"store_name\":\"s\"}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36', '2026-03-03 06:27:14'),
-(42, 2, 'DELETE', 'm_stores', 3, '{\"id\":\"3\",\"store_name\":\"s\",\"store_logo\":null,\"created_at\":\"2026-03-03 12:27:14\",\"created_by\":null}', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36', '2026-03-03 06:27:17');
+(42, 2, 'DELETE', 'm_stores', 3, '{\"id\":\"3\",\"store_name\":\"s\",\"store_logo\":null,\"created_at\":\"2026-03-03 12:27:14\",\"created_by\":null}', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36', '2026-03-03 06:27:17'),
+(43, 2, 'CREATE', 'user_sub_menu', 20, NULL, '{\"title\":\"Tipe Retur\",\"menu_id\":\"10\",\"url\":\"master\\/return_types\",\"icon\":\"fas fa-fw fa-truck-loading\",\"sort_order\":\"10\",\"is_active\":1}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36', '2026-03-05 11:08:01'),
+(44, 2, 'UPDATE', 'user_sub_menu', 20, '{\"id\":\"20\",\"menu_id\":\"10\",\"title\":\"Tipe Retur\",\"url\":\"master\\/return_types\",\"icon\":\"fas fa-fw fa-truck-loading\",\"is_active\":\"1\",\"sort_order\":\"10\"}', '{\"title\":\"Tipe Retur\",\"menu_id\":\"10\",\"url\":\"master\\/return_types\",\"icon\":\"fas fa-fw fa-truck-loading\",\"sort_order\":\"5\",\"is_active\":1}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36', '2026-03-05 11:08:10'),
+(45, 2, 'CREATE', 'user_sub_menu', 21, NULL, '{\"title\":\"Holidays\",\"menu_id\":\"10\",\"url\":\"master\\/holidays\",\"icon\":\"fas fa-fw fa-calendar-check\",\"sort_order\":\"6\",\"is_active\":1}', '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36', '2026-03-05 11:09:46'),
+(46, 4, 'DELETE', 'm_holidays', 4, '{\"id\":\"4\",\"holiday_date\":\"2026-03-03\",\"description\":\"libur abal - abal\"}', NULL, '::1', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/145.0.0.0 Safari/537.36', '2026-03-05 12:19:35');
 
 -- --------------------------------------------------------
 
@@ -477,7 +456,9 @@ INSERT INTO `user_sub_menu` (`id`, `menu_id`, `title`, `url`, `icon`, `is_active
 (16, 10, 'Platforms', 'master/platforms', 'fas fa-fw fa-shopping-bag', 1, 1),
 (17, 10, 'Stores', 'master/stores', 'fas fa-fw fa-store', 1, 2),
 (18, 10, 'Expeditions', 'master/expeditions', 'fas fa-fw fa-shipping-fast', 1, 3),
-(19, 10, 'Vendors', 'master/vendors', 'fas fa-fw fa-people-carry', 1, 4);
+(19, 10, 'Vendors', 'master/vendors', 'fas fa-fw fa-people-carry', 1, 4),
+(20, 10, 'Tipe Retur', 'master/return_types', 'fas fa-fw fa-truck-loading', 1, 5),
+(21, 10, 'Holidays', 'master/holidays', 'fas fa-fw fa-calendar-check', 1, 6);
 
 --
 -- Indexes for dumped tables
@@ -600,7 +581,7 @@ ALTER TABLE `m_expeditions`
 -- AUTO_INCREMENT for table `m_holidays`
 --
 ALTER TABLE `m_holidays`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `m_platforms`
@@ -630,19 +611,19 @@ ALTER TABLE `m_vendors`
 -- AUTO_INCREMENT for table `tr_returns`
 --
 ALTER TABLE `tr_returns`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- AUTO_INCREMENT for table `tr_return_history`
 --
 ALTER TABLE `tr_return_history`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=85;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=105;
 
 --
 -- AUTO_INCREMENT for table `tr_return_items`
 --
 ALTER TABLE `tr_return_items`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- AUTO_INCREMENT for table `user`
@@ -654,13 +635,13 @@ ALTER TABLE `user`
 -- AUTO_INCREMENT for table `user_access_control`
 --
 ALTER TABLE `user_access_control`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=19;
 
 --
 -- AUTO_INCREMENT for table `user_log`
 --
 ALTER TABLE `user_log`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=43;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=47;
 
 --
 -- AUTO_INCREMENT for table `user_menu`
@@ -678,7 +659,7 @@ ALTER TABLE `user_role`
 -- AUTO_INCREMENT for table `user_sub_menu`
 --
 ALTER TABLE `user_sub_menu`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=20;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=22;
 
 --
 -- Constraints for dumped tables

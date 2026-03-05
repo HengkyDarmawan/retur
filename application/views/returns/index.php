@@ -35,9 +35,9 @@
                         <label>Lama di Sistem</label>
                         <select name="duration" class="form-control">
                             <option value="">-- Semua --</option>
-                            <option value="3" <?= $filter['duration'] == '3' ? 'selected' : '' ?>>>= 3 Hari</option>
-                            <option value="7" <?= $filter['duration'] == '7' ? 'selected' : '' ?>>>= 7 Hari (Peringatan)</option>
-                            <option value="14" <?= $filter['duration'] == '14' ? 'selected' : '' ?>>>= 14 Hari (Overdue)</option>
+                            <option value="14" <?= $filter['duration'] == '14' ? 'selected' : '' ?>>>= 14 Hari Kerja</option>
+                            <option value="21" <?= $filter['duration'] == '21' ? 'selected' : '' ?>>>= 21 Hari Kerja (Warning)</option>
+                            <option value="30" <?= $filter['duration'] == '30' ? 'selected' : '' ?>>>= 30 Hari Kerja (Overdue)</option>
                         </select>
                     </div>
                     <div class="col-md-2 mb-3">
@@ -107,11 +107,9 @@
                                     break;
                             }
 
-                            // Hitung Aging (Lama Barang)
-                            $tgl_masuk = new DateTime($r['received_date']);
-                            $hari_ini  = new DateTime();
-                            $selisih   = $hari_ini->diff($tgl_masuk)->days;
-                            $aging_class = ($selisih >= 14) ? 'text-danger font-weight-bold' : (($selisih >= 7) ? 'text-warning font-weight-bold' : 'text-muted');
+                            // Hitung Aging (Mengambil data Hari Kerja dari Controller)
+                            $selisih = $r['working_day_age'] ?? 0;
+                            $aging_class = ($selisih >= 21) ? 'text-danger font-weight-bold' : (($selisih >= 14) ? 'text-warning font-weight-bold' : 'text-muted');
                         ?>
                         <tr>
                             <td><?= $no++; ?></td>
@@ -121,7 +119,9 @@
                             </td>
                             <td data-order="<?= $r['received_date']; ?>">
                                 <?= date('d/m/Y', strtotime($r['received_date'])); ?><br>
-                                <small class="<?= $aging_class; ?>"><i class="far fa-clock"></i> <?= $selisih; ?> Hari</small>
+                                <small class="<?= $aging_class; ?>" title="Dihitung berdasarkan hari kerja (Sabtu, Minggu & Libur Nasional dikecualikan)">
+                                    <i class="far fa-clock"></i> <?= $selisih; ?> Hari Kerja
+                                </small>
                             </td>
                             <td>
                                 <strong><?= $r['customer_name']; ?></strong><br>
@@ -214,7 +214,7 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <?= form_open('returns/update_status'); ?>
+            <?= form_open_multipart('returns/update_status'); ?>
                 <div class="modal-body">
                     <input type="hidden" name="id" id="modal_id">
                     
@@ -231,6 +231,11 @@
                             <option value="completed">Completed (Selesai)</option>
                             <option value="rejected">Rejected (Ditolak)</option>
                         </select>
+                    </div>
+                    <div id="field_evidence" style="display:none;" class="p-3 bg-light rounded mb-3 border border-warning">
+                        <label class="font-weight-bold text-warning"><i class="fas fa-camera"></i> Upload Foto/Video Bukti</label>
+                        <input type="file" name="evidence_files[]" class="form-control-file" multiple accept="image/*,video/*">
+                        <small class="text-muted">Bisa pilih banyak file sekaligus (Format: JPG, PNG, MP4).</small>
                     </div>
 
                     <div id="field_ready" style="display:none;" class="p-3 bg-light rounded mb-3 border">
@@ -319,19 +324,23 @@ document.addEventListener('DOMContentLoaded', function() {
 function toggleStatusFields(val) {
     const fieldReady = document.getElementById('field_ready');
     const fieldShipped = document.getElementById('field_shipped');
+    const fieldEvidence = document.getElementById('field_evidence');
     
     // Default sembunyikan semua panel tambahan
     fieldReady.style.display = 'none';
     fieldShipped.style.display = 'none';
+    fieldEvidence.style.display = 'none';
 
     // Panel Alamat HANYA muncul jika status 'ready'
     // (from_vendor tidak perlu input alamat lagi)
     if (val === 'ready') {
         fieldReady.style.display = 'block';
-    } 
-    // Panel Kurir muncul jika status 'shipped'
-    else if (val === 'shipped') {
+    } else if (val === 'shipped') {
         fieldShipped.style.display = 'block';
+    } 
+    // TAMBAHKAN KONDISI INI
+    else if (val === 'checking' || val === 'from_vendor') {
+        fieldEvidence.style.display = 'block';
     }
 }
 

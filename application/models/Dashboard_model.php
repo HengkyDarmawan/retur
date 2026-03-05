@@ -37,13 +37,24 @@ class Dashboard_model extends CI_Model
 
     public function get_avg_sla($filters)
     {
-        // Untuk rata-rata, kita gunakan DATEDIFF standar SQL agar performa tetap cepat
-        $this->db->select('AVG(DATEDIFF(IF(status = "completed", updated_at, NOW()), received_date)) as avg_days');
-        $this->db->from('tr_returns tr');
-        $this->db->where('tr.received_date IS NOT NULL');
-        $this->_apply_filter($filters);
-        $res = $this->db->get()->row();
-        return round($res->avg_days ?? 0);
+        $this->db->select('received_date, updated_at');
+        $this->db->from('tr_returns');
+        $this->db->where('status', 'completed');
+        
+        if (!empty($filters['start'])) $this->db->where('received_date >=', $filters['start']);
+        if (!empty($filters['end'])) $this->db->where('received_date <=', $filters['end']);
+
+        $results = $this->db->get()->result_array();
+
+        if (empty($results)) return 0;
+
+        $total_working_days = 0;
+        foreach ($results as $row) {
+            // Parameter kedua diisi 'updated_at' karena barang sudah selesai
+            $total_working_days += count_working_days($row['received_date'], $row['updated_at']);
+        }
+
+        return round($total_working_days / count($results), 1);
     }
 
     public function get_overdue_30_days($filters)
@@ -65,7 +76,7 @@ class Dashboard_model extends CI_Model
             // PANGGIL HELPER: Hitung Hari Kerja (Senin-Jumat & Minus Libur Nasional)
             $working_days = count_working_days($row['received_date']);
             
-            if ($working_days > 30) {
+            if ($working_days > 20) {
                 $row['masa_tunggu'] = $working_days;
                 $overdue_list[] = $row;
             }

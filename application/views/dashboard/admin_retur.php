@@ -153,7 +153,9 @@
                             </td>
                             <td><?= $row['customer_name']; ?></td>
                             <td class="text-center">
-                                <span class="text-danger font-weight-bold"><?= $row['masa_tunggu']; ?> Hari</span>
+                                <span class="text-danger font-weight-bold">
+                                    <i class="far fa-clock"></i> <?= $row['masa_tunggu']; ?> Hari Kerja
+                                </span>
                             </td>
                             <td class="text-center pr-4">
                                 <a href="<?= base_url('returns/detail/'.$row['id']); ?>" class="btn btn-outline-primary btn-sm btn-circle shadow-sm" title="Buka Detail">

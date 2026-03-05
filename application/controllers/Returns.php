@@ -13,16 +13,16 @@ class Returns extends MY_Controller {
     }
 
     public function index() {
-        // 1. Cek Hak Akses
+        // 1. Cek Hak Akses (Tetap sama)
         if (!user_can('view', 'returns')) {
             $this->session->set_flashdata(['message' => 'Akses ditolak!', 'type' => 'error']);
             redirect('dashboard');
         }
 
-        // 2. Ambil data master untuk modal/dropdown
-        $data['couriers'] = $this->db->get('m_expeditions')->result_array();
+        // Ambil daftar hari libur dari model
+        $holidays = $this->m_retur->get_holidays_array();
 
-        // 3. Tangkap Filter
+        // 2. Tangkap Filter
         $filter = [
             'start_date' => $this->input->get('start_date', TRUE),
             'end_date'   => $this->input->get('end_date', TRUE),
@@ -30,30 +30,39 @@ class Returns extends MY_Controller {
             'duration'   => $this->input->get('duration', TRUE)
         ];
 
-        /** * PERBAIKAN LOGIKA: 
-         * Kita cek apakah ada filter yang benar-benar diisi oleh user.
-         * Jika semua filter kosong, kita panggil get_all_returns().
-         */
-        $is_filtering = false;
-        foreach ($filter as $key => $value) {
-            if (!empty($value)) {
-                $is_filtering = true;
-                break;
+        // Ambil data dasar dari database
+        $raw_returns = $this->m_retur->get_all_returns(); // atau get_filtered_returns
+        
+        $processed_returns = [];
+        $today = date('Y-m-d');
+
+        foreach ($raw_returns as $row) {
+            // Hitung umur hari kerja
+            $age = $this->m_retur->count_working_days($row['received_date'], $today, $holidays);
+            $row['working_day_age'] = $age;
+
+            // --- LOGIKA FILTER DURATION ---
+            // Karena DATEDIFF SQL tidak akurat (hitung weekend), kita filter ulang di sini
+            if (!empty($filter['duration'])) {
+                if ($age < (int)$filter['duration']) {
+                    continue; // Skip jika tidak memenuhi kriteria filter hari kerja
+                }
             }
+
+            // --- LOGIKA FILTER STATUS (Jika ada) ---
+            if (!empty($filter['status']) && $row['status'] !== $filter['status']) {
+                continue;
+            }
+
+            $processed_returns[] = $row;
         }
 
-        if ($is_filtering) {
-            $data['returns'] = $this->m_retur->get_filtered_returns($filter);
-        } else {
-            // Ini akan memanggil query dengan ORDER BY received_date DESC
-            $data['returns'] = $this->m_retur->get_all_returns(); 
-        }
-
+        $data['returns'] = $processed_returns;
         $data['title']   = "Manajemen Retur & Klaim";
-        $data['overdue'] = $this->m_retur->get_overdue_returns(); 
         $data['filter']  = $filter;
+        $data['couriers'] = $this->db->get('m_expeditions')->result_array();
 
-        // 4. Load View
+        // Load View (Tetap sama)
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);
@@ -239,8 +248,7 @@ class Returns extends MY_Controller {
         $this->load->view('templates/footer');
     }
 
-    public function update_status() { 
-        // Ambil data dasar
+    public function update_status() {
         $id = $this->input->post('id');
         $status = $this->input->post('status');
         $keterangan_user = $this->input->post('keterangan');
@@ -252,56 +260,101 @@ class Returns extends MY_Controller {
             return;
         }
 
-        $data_update = [
-            'status'     => $status,
-            'updated_at' => date('Y-m-d H:i:s')
-        ];
-
+        $data_update = ['status' => $status, 'updated_at' => date('Y-m-d H:i:s')];
         $history_msg = $keterangan_user;
-        
-        // --- LOGIKA BERDASARKAN STATUS ---
 
-        // 1. Tangkap data Alamat HANYA jika status 'ready'
+        // --- LOGIKA UPLOAD & KOMPRESI ---
+        $uploaded_files = [];
+        if (!empty($_FILES['evidence_files']['name'][0])) {
+            $path = './assets/uploads/evidence/';
+            if (!is_dir($path)) mkdir($path, 0777, TRUE);
+
+            $filesCount = count($_FILES['evidence_files']['name']);
+            for ($i = 0; $i < $filesCount; $i++) {
+                $_FILES['file']['name']     = $_FILES['evidence_files']['name'][$i];
+                $_FILES['file']['type']     = $_FILES['evidence_files']['type'][$i];
+                $_FILES['file']['tmp_name'] = $_FILES['evidence_files']['tmp_name'][$i];
+                $_FILES['file']['error']    = $_FILES['evidence_files']['error'][$i];
+                $_FILES['file']['size']     = $_FILES['evidence_files']['size'][$i];
+
+                $config['upload_path']   = $path;
+                $config['allowed_types'] = 'jpg|jpeg|png|webp|mp4|mov|avi';
+                $config['encrypt_name']  = TRUE;
+
+                $this->load->library('upload', $config);
+                $this->upload->initialize($config);
+
+                if ($this->upload->do_upload('file')) {
+                    $uploadData = $this->upload->data();
+                    $filePath = $uploadData['full_path'];
+                    $ext = strtolower($uploadData['file_ext']);
+                    $final_file_name = $uploadData['file_name'];
+
+                    // 1. JIKA GAMBAR -> KONVERSI KE WEBP
+                    if (in_array($ext, ['.jpg', '.jpeg', '.png'])) {
+                        $webp_name = $uploadData['raw_name'] . '.webp';
+                        $webp_path = $path . $webp_name;
+
+                        if ($ext == '.jpg' || $ext == '.jpeg') $img = imagecreatefromjpeg($filePath);
+                        elseif ($ext == '.png') {
+                            $img = imagecreatefrompng($filePath);
+                            imagepalettetotruecolor($img); // Jaga transparansi
+                        }
+
+                        if ($img) {
+                            imagewebp($img, $webp_path, 80); // Kualitas 80%
+                            imagedestroy($img);
+                            unlink($filePath); // Hapus file asli (JPG/PNG)
+                            $final_file_name = $webp_name;
+                        }
+                    }
+                    
+                    // 2. JIKA VIDEO -> KOMPRES MENGGUNAKAN FFMPEG
+                    // Catatan: Ini butuh FFmpeg terinstall di OS server
+                    if (in_array($ext, ['.mp4', '.mov', '.avi'])) {
+                        $compressed_name = 'compress_' . $uploadData['raw_name'] . '.mp4';
+                        $compressed_path = $path . $compressed_name;
+                        
+                        // Command FFmpeg: Kompres ke bitratre rendah (crf 28) agar file kecil
+                        $shell_cmd = "ffmpeg -i $filePath -vcodec libx264 -crf 28 -preset faster -y $compressed_path 2>&1";
+                        exec($shell_cmd, $output, $return_var);
+
+                        if ($return_var === 0) {
+                            unlink($filePath); // Hapus video asli yang berat
+                            $final_file_name = $compressed_name;
+                        }
+                    }
+
+                    $uploaded_files[] = $final_file_name;
+                }
+            }
+        }
+        
+        $files_json = !empty($uploaded_files) ? json_encode($uploaded_files) : null;
+
+        // --- LOGIKA STATUS (READY/SHIPPED) ---
+        // (Tetap sama seperti kode sebelumnya)
         if ($status == 'ready') {
             $alamat = $this->input->post('shipping_address');
-            $is_diff = $this->input->post('is_different_receiver');
-            
-            if (!empty($alamat)) {
-                $data_update['shipping_address'] = $alamat;
-            }
-            
-            if ($is_diff) {
-                $nama_p = $this->input->post('receiver_name');
-                $telp_p = $this->input->post('receiver_phone');
-                $data_update['receiver_info'] = "Penerima: $nama_p ($telp_p)";
+            if (!empty($alamat)) $data_update['shipping_address'] = $alamat;
+            if ($this->input->post('is_different_receiver')) {
+                $data_update['receiver_info'] = "Penerima: ".$this->input->post('receiver_name')." (".$this->input->post('receiver_phone').")";
             }
         } 
 
-        // 2. Tangkap data Pengiriman (WAJIB JIKA STATUS SHIPPED)
         if ($status == 'shipped') {
             $data_update['courier_id'] = $this->input->post('courier_id');
             $data_update['receipt_number'] = $this->input->post('receipt_number');
-            $data_update['shipping_date'] = $this->input->post('shipping_date');
-
             if (empty($data_update['courier_id']) || empty($data_update['receipt_number'])) {
-                $this->session->set_flashdata('message', 'Ekspedisi dan No Resi wajib diisi!');
-                $this->session->set_flashdata('type', 'error');
-                redirect('returns');
-                return;
+                $this->session->set_flashdata('message', 'Ekspedisi & Resi wajib diisi!');
+                redirect('returns'); return;
             }
         }
 
-        // Panggil Model
-        $simpan = $this->m_retur->update_status_with_history($id, $data_update, $history_msg);
-
-        if ($simpan) {
-            $this->session->set_flashdata('message', 'Berhasil update status!');
-            $this->session->set_flashdata('type', 'success');
-        } else {
-            $this->session->set_flashdata('message', 'Gagal update status!');
-            $this->session->set_flashdata('type', 'error');
-        }
+        $simpan = $this->m_retur->update_status_with_history($id, $data_update, $history_msg, $files_json);
         
+        $this->session->set_flashdata('message', $simpan ? 'Berhasil update!' : 'Gagal update!');
+        $this->session->set_flashdata('type', $simpan ? 'success' : 'error');
         redirect('returns');
     }
 }

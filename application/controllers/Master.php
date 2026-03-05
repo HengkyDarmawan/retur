@@ -6,6 +6,7 @@ class Master extends MY_Controller
     public function __construct()
     {
         parent::__construct();
+        $this->load->model('Master_model', 'm_master');
         // Model return_model diasumsikan memiliki fungsi general crud
         $this->load->model('Return_model', 'm_retur');
     }
@@ -93,6 +94,72 @@ class Master extends MY_Controller
             redirect('master/vendors');
         }
     }
+    // --- MASTER RETURN TYPES ---
+    public function return_types()
+    {
+        $data['title'] = 'Master Return Types';
+        $data['type']  = 'return_types';
+        $data['list']  = $this->m_master->get_master_data('m_return_types');
+
+        $this->form_validation->set_rules('name', 'Return Type Name', 'required|trim');
+
+        if ($this->form_validation->run() == false) {
+            $this->_render('master/index', $data);
+        } else {
+            $insertData = [
+                'type_name' => $this->input->post('name', true),
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+            $this->m_master->insert_master('m_return_types', $insertData);
+            
+            $this->session->set_flashdata(['message' => 'Tipe Retur berhasil ditambahkan!', 'type' => 'success']);
+            redirect('master/return_types');
+        }
+    }
+
+    // --- MASTER HOLIDAYS ---
+    public function holidays()
+    {
+        $data['title'] = 'Master Holidays';
+        $data['type']  = 'holidays';
+        $data['list']  = $this->m_master->get_master_data('m_holidays');
+
+        $this->form_validation->set_rules('name', 'Description', 'required|trim');
+
+        if ($this->form_validation->run() == false) {
+            $this->_render('master/index', $data);
+        } else {
+            $start_date = $this->input->post('start_date');
+            $end_date   = $this->input->post('end_date');
+            $description = $this->input->post('name', true);
+
+            // Jika hanya isi satu tanggal (start_date saja)
+            if (empty($end_date)) {
+                $this->m_master->insert_master('m_holidays', [
+                    'holiday_date' => $start_date,
+                    'description'  => $description
+                ]);
+            } else {
+                // LOGIKA BULK INSERT: Memecah rentang tanggal jadi baris tunggal
+                $begin = new DateTime($start_date);
+                $end   = new DateTime($end_date);
+                $end->modify('+1 day'); 
+
+                $interval = new DateInterval('P1D');
+                $daterange = new DatePeriod($begin, $interval ,$end);
+
+                foreach($daterange as $date){
+                    $this->m_master->insert_master('m_holidays', [
+                        'holiday_date' => $date->format("Y-m-d"),
+                        'description'  => $description
+                    ]);
+                }
+            }
+            
+            $this->session->set_flashdata(['message' => 'Data Libur berhasil diproses!', 'type' => 'success']);
+            redirect('master/holidays');
+        }
+    }
 
     // --- GLOBAL ACTIONS (EDIT & DELETE) ---
 
@@ -131,6 +198,8 @@ class Master extends MY_Controller
             case 'stores': return 'store_name';
             case 'vendors': return 'vendor_name';
             case 'expeditions': return 'expedition_name';
+            case 'return_types': return 'type_name';
+            case 'holidays': return 'description';
             default: return 'name';
         }
     }

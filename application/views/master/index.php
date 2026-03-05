@@ -20,19 +20,34 @@
                             <thead>
                                 <tr class="bg-light">
                                     <th width="5%">#</th>
-                                    <th>Nama</th>
+                                    <?php if($type == 'holidays'): ?>
+                                        <th width="20%">Tanggal Libur</th>
+                                    <?php endif; ?>
+                                    <th>Nama / Deskripsi</th>
                                     <th width="20%">Aksi</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 <?php 
-                                $i = 1; 
-                                foreach ($list as $l) : 
-                                    // Dinamis mengambil field name
-                                    $val = $l[$type == 'platforms' ? 'platform_name' : ($type == 'stores' ? 'store_name' : ($type == 'vendors' ? 'vendor_name' : 'expedition_name'))];
-                                ?>
+                                    $i = 1; 
+                                    foreach ($list as $l) : 
+                                        // Mapping field berdasarkan type
+                                        $field_map = [
+                                            'platforms'    => 'platform_name',
+                                            'stores'       => 'store_name',
+                                            'vendors'      => 'vendor_name',
+                                            'expeditions'  => 'expedition_name',
+                                            'return_types' => 'type_name',
+                                            'holidays'     => 'description'
+                                        ];
+                                        $field_name = $field_map[$type] ?? 'name';
+                                        $val = $l[$field_name];
+                                    ?>
                                     <tr>
                                         <td><?= $i++; ?></td>
+                                        <?php if($type == 'holidays'): ?>
+                                            <td><span class="badge badge-info"><?= date('d M Y', strtotime($l['holiday_date'])); ?></span></td>
+                                        <?php endif; ?>
                                         <td><strong><?= strtoupper($val); ?></strong></td>
                                         <td>
                                             <?php if (user_can('edit')) : ?>
@@ -59,8 +74,15 @@
                                                 <?= form_open('master/edit/' . $type); ?>
                                                     <input type="hidden" name="id" value="<?= $l['id']; ?>">
                                                     <div class="modal-body">
+                                                        <?php if($type == 'holidays'): ?>
+                                                            <div class="form-group">
+                                                                <label>Tanggal Libur</label>
+                                                                <input type="date" class="form-control" name="date" value="<?= $l['holiday_date']; ?>" required>
+                                                            </div>
+                                                        <?php endif; ?>
+
                                                         <div class="form-group">
-                                                            <label>Nama</label>
+                                                            <label>Nama / Deskripsi</label>
                                                             <input type="text" class="form-control" name="name" value="<?= $val; ?>" required>
                                                         </div>
                                                     </div>
@@ -91,10 +113,28 @@
             </div>
             <?= form_open('master/' . $type); ?>
                 <div class="modal-body">
-                    <div class="form-group">
-                        <label>Nama</label>
-                        <input type="text" class="form-control" name="name" placeholder="Input nama data baru..." required>
+                    <?php if($type == 'holidays'): ?>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Tanggal Mulai</label>
+                                <input type="date" class="form-control" name="start_date" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Tanggal Selesai (Opsional)</label>
+                                <input type="date" class="form-control" name="end_date">
+                                <small class="text-muted">*Isi jika libur lebih dari 1 hari</small>
+                            </div>
+                        </div>
                     </div>
+                <?php endif; ?>
+
+                <div class="form-group">
+                    <label><?= ($type == 'holidays') ? 'Deskripsi Libur' : 'Nama'; ?></label>
+                    <input type="text" class="form-control" name="name" placeholder="Input nama data baru..." required>
+                </div>
                 </div>
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>

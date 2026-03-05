@@ -213,6 +213,34 @@
                                         <?php endif; ?>
                                     </div>
                                     <p class="mb-0 small text-gray-700">"<?= htmlspecialchars($log['keterangan']); ?>"</p>
+                                    <?php 
+                                    // 1. Cek apakah ada file bukti di log ini
+                                    if (!empty($log['evidence_files'])) : 
+                                        $files = json_decode($log['evidence_files'], true);
+                                        if (!empty($files)) : 
+                                    ?>
+                                        <div class="row no-gutters mt-2">
+                                            <?php foreach ($files as $file) : 
+                                                $ext = pathinfo($file, PATHINFO_EXTENSION);
+                                                $file_path = base_url('assets/uploads/evidence/' . $file);
+                                            ?>
+                                                <div class="col-4 pr-1 mb-1">
+                                                    <?php if (in_array($ext, ['webp', 'jpg', 'jpeg', 'png'])) : ?>
+                                                        <a href="<?= $file_path; ?>" target="_blank">
+                                                            <img src="<?= $file_path; ?>" class="img-fluid rounded border shadow-sm" style="height: 60px; width: 100%; object-fit: cover;" alt="Evidence">
+                                                        </a>
+                                                    <?php elseif (in_array($ext, ['mp4', 'mov', 'avi'])) : ?>
+                                                        <a href="<?= $file_path; ?>" target="_blank" class="btn btn-xs btn-outline-danger btn-block p-1" style="font-size: 10px;">
+                                                            <i class="fas fa-video"></i> Lihat Video
+                                                        </a>
+                                                    <?php endif; ?>
+                                                </div>
+                                            <?php endforeach; ?>
+                                        </div>
+                                    <?php 
+                                        endif;
+                                    endif; 
+                                    ?>
                                     <small class="text-xs text-info font-italic">Admin: <?= $log['admin_name'] ?: 'System'; ?></small>
                                 </div>
                             </li>

@@ -172,36 +172,28 @@ class Return_model extends CI_Model {
     }
 
     // Fungsi Update Status dengan Otomatis Menyimpan History
-    public function update_status_with_history($id, $data_update, $keterangan) {
-        $this->db->trans_start(); // Mulai transaksi
+    // SESUDAH:
+        public function update_status_with_history($id, $data_update, $keterangan, $files_json = null) {
+            $this->db->trans_start();
 
-        // 1. UPDATE TABEL UTAMA
-        // Pastikan $id adalah primary key 'id' di database
-        $this->db->where('id', $id);
-        $this->db->update('tr_returns', $data_update);
-        
-        // Cek apakah ada baris yang benar-benar terupdate
-        $check_update = $this->db->affected_rows();
+            // 1. UPDATE TABEL UTAMA (tr_returns)
+            $this->db->where('id', $id);
+            $this->db->update('tr_returns', $data_update);
+            
+            // 2. INSERT KE tr_return_history (TAMBAHKAN KOLOM evidence_files)
+            $history = [
+                'return_id'      => $id,
+                'status'         => $data_update['status'],
+                'keterangan'     => $keterangan,
+                'evidence_files' => $files_json, // <--- MASUK KE SINI
+                'created_by'     => $this->session->userdata('user_id'),
+                'created_at'     => date('Y-m-d H:i:s')
+            ];
+            $this->db->insert('tr_return_history', $history);
 
-        // 2. INSERT HISTORY
-        $history = [
-            'return_id'  => $id,
-            'status'     => $data_update['status'],
-            'keterangan' => $keterangan ? $keterangan : "Update status ke " . $data_update['status'],
-            'created_by' => $this->session->userdata('user_id'),
-            'created_at' => date('Y-m-d H:i:s')
-        ];
-        $this->db->insert('tr_return_history', $history);
-
-        $this->db->trans_complete();
-
-        if ($this->db->trans_status() === FALSE) {
-            // Jika gagal, ini akan menampilkan error SQL-nya
-            return false;
-        } else {
-            return true;
+            $this->db->trans_complete();
+            return $this->db->trans_status();
         }
-    }
     /**
      * Mengambil urutan angka terakhir untuk hari ini
      */
@@ -227,5 +219,36 @@ class Return_model extends CI_Model {
         $this->db->where('return_id', $return_id);
         $this->db->order_by('created_at', 'DESC');
         return $this->db->get()->result_array();
+    }
+    public function get_holidays_array() {
+        $res = $this->db->select('holiday_date')->get('m_holidays')->result_array();
+        return array_column($res, 'holiday_date');
+    }
+
+    /**
+     * Logika perhitungan hari kerja (PHP Side)
+     * Menghitung selisih hari kerja antara dua tanggal
+     */
+    public function count_working_days($start_date, $end_date, $holidays) {
+        $start = new DateTime($start_date);
+        $end = new DateTime($end_date);
+        $end->modify('+1 day'); // Termasuk hari terakhir
+
+        $working_days = 0;
+        $interval = new DateInterval('P1D');
+        $periods = new DatePeriod($start, $interval, $end);
+
+        foreach ($periods as $period) {
+            $day_of_week = $period->format('N'); // 1 (Mon) - 7 (Sun)
+            $is_weekend = ($day_of_week >= 6); // 6=Sabtu, 7=Minggu
+            $is_holiday = in_array($period->format('Y-m-d'), $holidays);
+
+            if (!$is_weekend && !$is_holiday) {
+                $working_days++;
+            }
+        }
+        // Kita return -1 karena hari pertama (received_date) biasanya tidak dihitung sebagai "umur 1 hari" 
+        // kecuali kamu ingin menghitung hari input sebagai hari ke-1.
+        return ($working_days > 0) ? $working_days - 1 : 0;
     }
 } // Penutup Class Return_model

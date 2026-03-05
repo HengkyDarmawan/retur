@@ -4,6 +4,11 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 class Master_model extends CI_Model {
 
     public function get_master_data($table) {
+        if ($table == 'm_holidays') {
+            $this->db->order_by('holiday_date', 'DESC');
+        } else {
+            $this->db->order_by('id', 'DESC');
+        }
         return $this->db->get($table)->result_array();
     }
 
