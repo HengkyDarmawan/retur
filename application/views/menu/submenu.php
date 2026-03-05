@@ -118,3 +118,45 @@
         </div>
     </div>
 </div>
+<div class="modal fade" id="newSubMenuModal" tabindex="-1" role="dialog">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Tambah Submenu Baru</h5>
+                <button type="button" class="close" data-dismiss="modal"><span>&times;</span></button>
+            </div>
+            <?= form_open('menu/submenu'); ?> 
+                <div class="modal-body">
+                    <div class="form-group">
+                        <input type="text" class="form-control" name="title" placeholder="Judul Submenu">
+                    </div>
+                    <div class="form-group">
+                        <select name="menu_id" class="form-control">
+                            <option value="">Pilih Menu Induk</option>
+                            <?php foreach ($menu as $m) : ?>
+                                <option value="<?= $m['id']; ?>"><?= $m['menu']; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <input type="text" class="form-control" name="url" placeholder="URL (Contoh: menu/submenu)">
+                    </div>
+                    <div class="form-group">
+                        <input type="text" class="form-control" name="icon" placeholder="Icon FontAwesome (Contoh: fas fa-fw fa-folder)">
+                    </div>
+                    <div class="form-group">
+                        <input type="number" class="form-control" name="sort_order" placeholder="Nomor Urut">
+                    </div>
+                    <div class="custom-control custom-checkbox">
+                        <input type="checkbox" class="custom-control-input" name="is_active" value="1" id="is_active_add" checked>
+                        <label class="custom-control-label" for="is_active_add">Status Aktif?</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary">Simpan</button>
+                </div>
+            <?= form_close(); ?>
+        </div>
+    </div>
+</div>

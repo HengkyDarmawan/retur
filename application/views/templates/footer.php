@@ -43,6 +43,7 @@
             </div>
         </div>
     </div>
+    <script src="<?= base_url('assets/js/wa-handler.js'); ?>"></script>
     <script src="<?= base_url('assets/')?>vendor/jquery/jquery.min.js"></script>
     <script src="<?= base_url('assets/')?>vendor/bootstrap/js/bootstrap.bundle.min.js"></script>
     <script src="<?= base_url('assets/')?>vendor/jquery-easing/jquery.easing.min.js"></script>
@@ -54,6 +55,27 @@
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
     <script>
+        $(document).ready(function() {
+            // Hancurkan inisialisasi lama jika ada untuk mencegah konflik
+            if ($.fn.DataTable.isDataTable('#dataTable')) {
+                $('#dataTable').DataTable().destroy();
+            }
+
+            $('#dataTable').DataTable({
+                // Urutkan berdasarkan kolom indeks ke-1 (Tgl Masuk) secara Descending
+                "order": [[1, "desc"]], 
+                "stateSave": false, // Jangan simpan posisi sortir terakhir di browser
+                "columnDefs": [
+                    // Matikan fitur klik sortir di kolom selain tanggal agar tidak sengaja teracak
+                    { "orderable": false, "targets": [0, 2, 3, 4, 5] },
+                    // Beritahu DataTables bahwa kolom indeks 1 adalah tipe tanggal
+                    { "type": "date", "targets": 1 }
+                ],
+                "language": {
+                    "url": "//cdn.datatables.net/plug-ins/1.10.21/i18n/Indonesian.json"
+                }
+            });
+        });
         $(document).ready(function() {
             // 1. Inisialisasi DataTables
             if ($('#dataTable').length > 0) {
@@ -141,6 +163,7 @@
             });
         });
     </script>
+    
 
 </body>
 

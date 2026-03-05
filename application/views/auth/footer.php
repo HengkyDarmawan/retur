@@ -10,6 +10,7 @@
     <!-- Custom scripts for all pages-->
     <script src="<?= base_url('assets/')?>js/sb-admin-2.min.js"></script>
     <script>
+        // Logika SweetAlert untuk FlashData (Redirect)
         const flashData = "<?= $this->session->flashdata('message'); ?>";
         const type = "<?= $this->session->flashdata('type'); ?>"; // kita tambah session 'type'
 

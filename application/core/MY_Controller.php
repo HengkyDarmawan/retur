@@ -7,31 +7,40 @@ class MY_Controller extends CI_Controller {
     public function __construct() {
         parent::__construct();
         
-        // 1. Load Helper wajib
         $this->load->helper('stater');
 
-        // 2. CEK BLOKIR IP (Paling Prioritas)
-        // Jika IP terdaftar di tabel blocked_ips, aplikasi langsung berhenti di sini.
-        // check_ip_ban();
-
-        // 3. Ambil data user berdasarkan session
         $username = $this->session->userdata('username');
         if ($username) {
             $this->user = $this->db->get_where('user', ['username' => $username])->row_array();
             
-            // Sinkronisasi user_id ke session jika belum ada (berguna untuk activity log)
             if ($this->user && !$this->session->userdata('user_id')) {
                 $this->session->set_userdata('user_id', $this->user['id']);
             }
+
+            // --- INI KUNCINYA ---
+            // Mengirim variabel 'user' ke seluruh View secara global
+            $this->load->vars(['user' => $this->user]);
         }
 
-        // 4. PROTEKSI AKSES URL & CRUD
-        // Dipanggil terakhir karena fungsi ini butuh data user (role_id) yang sudah login.
         check_access();
     }
-    // Taruh di sini supaya bisa dipakai SEMUA Controller
-    protected function _render($view, $data)
+    // Fungsi untuk mengambil data filter dari input atau session
+    protected function get_global_filters() {
+        $filters = [
+            'start_date'  => $this->input->get('start_date') ?: date('Y-m-01'),
+            'end_date'    => $this->input->get('end_date') ?: date('Y-m-t'),
+            'store_id'    => $this->input->get('store_id'),
+            'platform_id' => $this->input->get('platform_id')
+        ];
+        return $filters;
+    }
+
+    // Render otomatis, sekarang lebih ringkas
+    protected function _render($view, $data = [])
     {
+        // Kita tidak perlu lagi memasukkan $data['user'] di sini 
+        // karena sudah di-handle oleh $this->load->vars() di atas.
+        
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);

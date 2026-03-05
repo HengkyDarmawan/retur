@@ -1,6 +1,44 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
+
+
+/**
+ * =============================================================
+ * HELPER MANAJEMEN RETUR & OPERASIONAL
+ * =============================================================
+ */
+
+/**
+ * Fungsi menghitung selisih hari kerja (Senin-Jumat)
+ * Mengecualikan Sabtu, Minggu, dan hari libur nasional di tabel m_holidays
+ */
+if (!function_exists('count_working_days')) {
+    function count_working_days($start_date) {
+        $ci = get_instance();
+        $start = new DateTime($start_date);
+        $end = new DateTime(); // Sampai hari ini
+        
+        // Ambil daftar libur dari database
+        $holidays = $ci->db->select('holiday_date')->get('m_holidays')->result_array();
+        $holiday_list = array_column($holidays, 'holiday_date');
+
+        $working_days = 0;
+        
+        // Iterasi hari demi hari
+        while ($start <= $end) {
+            $day_of_week = $start->format('N'); // 1 (Senin) s/d 7 (Minggu)
+            $current_date = $start->format('Y-m-d');
+
+            // Syarat: Bukan Sabtu (6), Bukan Minggu (7), dan tidak terdaftar di m_holidays
+            if ($day_of_week < 6 && !in_array($current_date, $holiday_list)) {
+                $working_days++;
+            }
+            $start->modify('+1 day');
+        }
+        return $working_days;
+    }
+}
 /**
  * Helper untuk mengambil menu sidebar berdasarkan hak akses dan urutan
  */
@@ -149,20 +187,25 @@ function has_permission($type) {
  * Fungsi sakti untuk cek izin di View secara simpel
  * Contoh pakai: if(user_can('add')) { ... tombol ... }
  */
-function user_can($type) {
+function user_can($type, $url = null) {
     $ci = get_instance();
     $role_id = $ci->session->userdata('role_id');
 
+    // Superadmin (Role ID 1) biasanya bypass semua pengecekan
     if ($role_id == 1) return true;
 
-    // Ambil segment 1 dan 2
-    $s1 = $ci->uri->segment(1);
-    $s2 = $ci->uri->segment(2);
-    
-    // Jika segment 2 kosong (hanya menu utama), pakai segment 1 saja
-    $url = $s2 ? "$s1/$s2" : $s1;
+    // Jika URL tidak ditentukan, ambil dari URL halaman saat ini
+    if (!$url) {
+        $s1 = $ci->uri->segment(1);
+        $s2 = $ci->uri->segment(2);
+        $url = $s2 ? "$s1/$s2" : $s1;
+    }
 
-    $ci->db->select("uac.can_$type as permission");
+    // Pastikan nama kolom sesuai (can_view, can_add, can_password, dll)
+    // Jika input hanya 'view', maka jadi 'can_view'
+    $column = (strpos($type, 'can_') === 0) ? $type : "can_$type";
+
+    $ci->db->select("uac.$column as permission");
     $ci->db->from('user_access_control uac');
     $ci->db->join('user_sub_menu usm', 'usm.id = uac.submenu_id');
     $ci->db->where([
