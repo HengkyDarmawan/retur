@@ -44,6 +44,9 @@
                         <label>&nbsp;</label>
                         <div class="d-flex">
                             <button type="submit" class="btn btn-primary btn-block"><i class="fas fa-search"></i></button>
+                            <button type="submit" name="export" value="excel" class="btn btn-success ml-1" title="Export Excel">
+                                <i class="fas fa-file-excel"></i>
+                            </button>
                             <a href="<?= base_url('returns'); ?>" class="btn btn-secondary ml-1"><i class="fas fa-undo"></i></a>
                         </div>
                     </div>
@@ -170,6 +173,9 @@
                                         <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in">
                                             <a class="dropdown-item" href="<?= base_url('returns/detail/'.$r['id']); ?>">
                                                 <i class="fas fa-eye fa-sm fa-fw mr-2 text-primary"></i> Detail
+                                            </a>
+                                            <a class="dropdown-item" href="<?= base_url('returns/edit/'.$r['id']); ?>">
+                                                <i class="fas fa-edit fa-sm fa-fw mr-2 text-warning"></i> Edit Data
                                             </a>
                                             <a class="dropdown-item update-status-btn" href="javascript:void(0)" 
                                                 data-toggle="modal" data-target="#updateStatusModal" 

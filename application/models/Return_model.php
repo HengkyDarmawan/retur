@@ -7,18 +7,54 @@ class Return_model extends CI_Model {
      * Mengambil semua data retur dengan Join Master Data
      * Digunakan oleh Admin
      */
-    public function get_all_returns() {
-        $this->db->select('tr_returns.*, m_stores.store_name, m_platforms.platform_name, m_expeditions.expedition_name');
+   public function get_all_returns($filter = []) {
+        $this->db->select('
+            tr_returns.*, 
+            m_stores.store_name, 
+            m_platforms.platform_name, 
+            m_expeditions.expedition_name,
+            tr_return_items.product_name
+        ');
         $this->db->from('tr_returns');
+        
+        // Joins
         $this->db->join('m_stores', 'm_stores.id = tr_returns.store_id', 'left');
         $this->db->join('m_platforms', 'm_platforms.id = tr_returns.platform_id', 'left');
         $this->db->join('m_expeditions', 'm_expeditions.id = tr_returns.courier_id', 'left');
+        $this->db->join('tr_return_items', 'tr_return_items.return_id = tr_returns.id', 'left');
 
-        // DEFAULT URUTAN: Tanggal Masuk Terbaru di Atas
+        // Filter SQL (Tanggal & Status)
+        if (!empty($filter['start_date'])) {
+            $this->db->where('tr_returns.received_date >=', $filter['start_date']);
+        }
+        if (!empty($filter['end_date'])) {
+            $this->db->where('tr_returns.received_date <=', $filter['end_date']);
+        }
+        if (!empty($filter['status'])) {
+            $this->db->where('tr_returns.status', $filter['status']);
+        }
+
         $this->db->order_by('tr_returns.received_date', 'DESC');
         $this->db->order_by('tr_returns.id', 'DESC'); 
 
         return $this->db->get()->result_array();
+    }
+    //cek nomor retur user
+    public function get_return_by_number($no_retur) {
+        $this->db->select('
+            tr_returns.*, 
+            m_stores.store_name, 
+            m_platforms.platform_name, 
+            tr_return_items.product_name, 
+            tr_return_items.warranty_expiry
+        '); // Saya hapus vendor_name karena bikin error 1054
+        $this->db->from('tr_returns');
+        $this->db->join('m_stores', 'm_stores.id = tr_returns.store_id', 'left');
+        $this->db->join('m_platforms', 'm_platforms.id = tr_returns.platform_id', 'left');
+        $this->db->join('tr_return_items', 'tr_return_items.return_id = tr_returns.id', 'left');
+        $this->db->where('tr_returns.return_number', $no_retur);
+        
+        return $this->db->get()->row_array();
     }
 
     public function get_filtered_returns($f) {
