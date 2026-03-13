@@ -36,6 +36,7 @@ class Returns extends MY_Controller {
             'end_date'   => $this->input->get('end_date', TRUE),
             'status'     => $this->input->get('status', TRUE),
             'duration'   => $this->input->get('duration', TRUE),
+            'type_id'    => $this->input->get('type_id', TRUE),
             'export'     => $this->input->get('export', TRUE)
         ];
 
@@ -71,6 +72,7 @@ class Returns extends MY_Controller {
         $data['returns'] = $processed_returns;
         $data['title']   = "Manajemen Retur & Klaim";
         $data['filter']  = $filter;
+        $data['return_types'] = $this->db->get('m_return_types')->result_array(); // <-- Tambahan
         $data['couriers'] = $this->db->get('m_expeditions')->result_array();
 
         $this->load->view('templates/header', $data);
@@ -81,111 +83,111 @@ class Returns extends MY_Controller {
     }
 
     private function export_excel($data_to_export) {
-    // 1. Bersihkan lingkungan agar file tidak korup
-    error_reporting(0);
-    if (ob_get_contents()) ob_end_clean();
+        // 1. Bersihkan lingkungan agar file tidak korup
+        error_reporting(0);
+        if (ob_get_contents()) ob_end_clean();
 
-    // 2. Tangkap nilai filter untuk Header Keterangan
-    $sd = $this->input->get('start_date') ? date('d/m/Y', strtotime($this->input->get('start_date'))) : 'Semua';
-    $ed = $this->input->get('end_date') ? date('d/m/Y', strtotime($this->input->get('end_date'))) : 'Semua';
-    $st = $this->input->get('status') ? $this->input->get('status') : 'Semua Status';
-    
-    // Keterangan Lama di Sistem (Duration)
-    $duration = $this->input->get('duration');
-    $duration_text = ($duration) ? "> $duration Hari Kerja" : "Semua Durasi";
+        // 2. Tangkap nilai filter untuk Header Keterangan
+        $sd = $this->input->get('start_date') ? date('d/m/Y', strtotime($this->input->get('start_date'))) : 'Semua';
+        $ed = $this->input->get('end_date') ? date('d/m/Y', strtotime($this->input->get('end_date'))) : 'Semua';
+        $st = $this->input->get('status') ? $this->input->get('status') : 'Semua Status';
+        
+        // Keterangan Lama di Sistem (Duration)
+        $duration = $this->input->get('duration');
+        $duration_text = ($duration) ? "> $duration Hari Kerja" : "Semua Durasi";
 
-    $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
-    $sheet = $spreadsheet->getActiveSheet();
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
 
-    // --- BAGIAN HEADER KETERANGAN (Baris 1 - 4) ---
-    $sheet->setCellValue('A1', 'LAPORAN DATA RETUR & KLAIM');
-    $sheet->mergeCells('A1:J1'); 
-    $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        // --- BAGIAN HEADER KETERANGAN (Baris 1 - 4) ---
+        $sheet->setCellValue('A1', 'LAPORAN DATA RETUR & KLAIM');
+        $sheet->mergeCells('A1:J1'); 
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
 
-    $sheet->setCellValue('A2', "Periode: $sd s/d $ed");
-    $sheet->setCellValue('A3', "Status: $st");
-    $sheet->setCellValue('A4', "Lama di Sistem: $duration_text");
-    
-    // Style miring untuk keterangan filter
-    $sheet->getStyle('A2:A4')->getFont()->setItalic(true);
+        $sheet->setCellValue('A2', "Periode: $sd s/d $ed");
+        $sheet->setCellValue('A3', "Status: $st");
+        $sheet->setCellValue('A4', "Lama di Sistem: $duration_text");
+        
+        // Style miring untuk keterangan filter
+        $sheet->getStyle('A2:A4')->getFont()->setItalic(true);
 
-    // --- HEADER TABEL (Baris 6) ---
-    $headers = [
-        'No.', 
-        'No Order', 
-        'Customer', 
-        'Nama Barang', 
-        'Store', 
-        'Platform', 
-        'Tanggal Masuk', 
-        'Tanggal Pembelian', 
-        'Estimasi (Aging)', 
-        'Tanda Terima'
-    ];
-    
-    $column = 'A';
-    foreach ($headers as $h) {
-        $sheet->setCellValue($column . '6', $h);
-        $column++;
+        // --- HEADER TABEL (Baris 6) ---
+        $headers = [
+            'No.', 
+            'No Order', 
+            'Customer', 
+            'Nama Barang', 
+            'Store', 
+            'Platform', 
+            'Tanggal Masuk', 
+            'Tanggal Pembelian', 
+            'Estimasi (Aging)', 
+            'Tanda Terima'
+        ];
+        
+        $column = 'A';
+        foreach ($headers as $h) {
+            $sheet->setCellValue($column . '6', $h);
+            $column++;
+        }
+
+        // STYLING HEADER TABEL
+        $styleHeader = [
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'alignment' => [
+                'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
+                'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER
+            ],
+            'fill' => [
+                'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 
+                'startColor' => ['rgb' => '4E73DF'] // Biru Admin
+            ],
+            'borders' => [
+                'allBorders' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN]
+            ]
+        ];
+        $sheet->getStyle('A6:J6')->applyFromArray($styleHeader);
+        $sheet->getRowDimension('6')->setRowHeight(25);
+
+        // --- ISI DATA (Mulai Baris 7) ---
+        $rowNum = 7;
+        $no = 1;
+        foreach ($data_to_export as $r) {
+            $sheet->setCellValue('A' . $rowNum, $no++);
+            $sheet->setCellValueExplicit('B' . $rowNum, $r['order_number'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+            $sheet->setCellValue('C' . $rowNum, $r['customer_name']);
+            $sheet->setCellValue('D' . $rowNum, $r['product_name'] ?? '-');
+            $sheet->setCellValue('E' . $rowNum, $r['store_name'] ?? '-');
+            $sheet->setCellValue('F' . $rowNum, $r['platform_name'] ?? '-');
+            
+            $sheet->setCellValue('G' . $rowNum, (!empty($r['received_date'])) ? date('d/m/Y', strtotime($r['received_date'])) : '-');
+            $sheet->setCellValue('H' . $rowNum, (!empty($r['purchase_date'])) ? date('d/m/Y', strtotime($r['purchase_date'])) : '-');
+            
+            $sheet->setCellValue('I' . $rowNum, ($r['working_day_age'] ?? 0) . ' Hari');
+            $sheet->setCellValue('J' . $rowNum, $r['return_number']);
+            
+            // Border baris data
+            $sheet->getStyle('A' . $rowNum . ':J' . $rowNum)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
+            
+            $rowNum++;
+        }
+
+        // Auto Size Kolom
+        foreach (range('A', 'J') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        // --- PROSES DOWNLOAD ---
+        $filename = 'Laporan_Retur_Export_' . date('Ymd_His') . '.xlsx';
+        
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
     }
-
-    // STYLING HEADER TABEL
-    $styleHeader = [
-        'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
-        'alignment' => [
-            'horizontal' => \PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER,
-            'vertical' => \PhpOffice\PhpSpreadsheet\Style\Alignment::VERTICAL_CENTER
-        ],
-        'fill' => [
-            'fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID, 
-            'startColor' => ['rgb' => '4E73DF'] // Biru Admin
-        ],
-        'borders' => [
-            'allBorders' => ['borderStyle' => \PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN]
-        ]
-    ];
-    $sheet->getStyle('A6:J6')->applyFromArray($styleHeader);
-    $sheet->getRowDimension('6')->setRowHeight(25);
-
-    // --- ISI DATA (Mulai Baris 7) ---
-    $rowNum = 7;
-    $no = 1;
-    foreach ($data_to_export as $r) {
-        $sheet->setCellValue('A' . $rowNum, $no++);
-        $sheet->setCellValueExplicit('B' . $rowNum, $r['order_number'], \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
-        $sheet->setCellValue('C' . $rowNum, $r['customer_name']);
-        $sheet->setCellValue('D' . $rowNum, $r['product_name'] ?? '-');
-        $sheet->setCellValue('E' . $rowNum, $r['store_name'] ?? '-');
-        $sheet->setCellValue('F' . $rowNum, $r['platform_name'] ?? '-');
-        
-        $sheet->setCellValue('G' . $rowNum, (!empty($r['received_date'])) ? date('d/m/Y', strtotime($r['received_date'])) : '-');
-        $sheet->setCellValue('H' . $rowNum, (!empty($r['purchase_date'])) ? date('d/m/Y', strtotime($r['purchase_date'])) : '-');
-        
-        $sheet->setCellValue('I' . $rowNum, ($r['working_day_age'] ?? 0) . ' Hari');
-        $sheet->setCellValue('J' . $rowNum, $r['return_number']);
-        
-        // Border baris data
-        $sheet->getStyle('A' . $rowNum . ':J' . $rowNum)->getBorders()->getAllBorders()->setBorderStyle(\PhpOffice\PhpSpreadsheet\Style\Border::BORDER_THIN);
-        
-        $rowNum++;
-    }
-
-    // Auto Size Kolom
-    foreach (range('A', 'J') as $col) {
-        $sheet->getColumnDimension($col)->setAutoSize(true);
-    }
-
-    // --- PROSES DOWNLOAD ---
-    $filename = 'Laporan_Retur_Export_' . date('Ymd_His') . '.xlsx';
-    
-    header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
-    header('Content-Disposition: attachment;filename="' . $filename . '"');
-    header('Cache-Control: max-age=0');
-
-    $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
-    $writer->save('php://output');
-    exit;
-}
 
     public function add() {
         // Cek Hak Akses Add
@@ -235,7 +237,13 @@ class Returns extends MY_Controller {
 
         // 3. LOGIC WHATSAPP (Input: 0812 / 812 -> Hasil: 62812)
         $raw_wa = $this->input->post('customer_wa');
-        $clean_wa = '62' . ltrim($raw_wa, '0'); 
+        if (!empty($raw_wa)) {
+            // Jika diisi, tambahkan 62 dan buang angka 0 di depan
+            $clean_wa = '62' . ltrim($raw_wa, '0'); 
+        } else {
+            // JIKA KOSONG, KIRIM STRING KOSONG (Agar tidak error 1048)
+            $clean_wa = ''; 
+        }
 
         // 4. LOGIC GARANSI (Tanggal Beli + X Tahun)
         $purchase_date = $this->input->post('purchase_date');
@@ -286,13 +294,25 @@ class Returns extends MY_Controller {
             }
         }
 
+        // --- PENAMBAHAN: CEK TIPE RETUR UNTUK DEFAULT STATUS ---
+        $type_id = $this->input->post('type_id');
+        $this->db->select('type_name');
+        $this->db->where('id', $type_id);
+        $type_data = $this->db->get('m_return_types')->row_array();
+        
+        // Konversi ke huruf kecil untuk pengecekan kondisi
+        $type_name = isset($type_data['type_name']) ? strtolower($type_data['type_name']) : '';
+        
+        // Jika tipe retur mengandung kata 'complain', set status default ke 'user complain'
+        $default_status = ($type_name == 'complain' || $type_name == 'masuk komplain marketplace') ? 'user complain' : 'received';
+
         // 7. PREPARE DATA HEADER
         $data_header = [
             'return_number'      => $return_number,
             'order_number'       => $order_number,
             'store_id'           => $this->input->post('store_id'),
             'platform_id'        => $this->input->post('platform_id'),
-            'type_id'            => $this->input->post('type_id'),
+            'type_id'            => $type_id,
             'customer_name'      => $this->input->post('customer_name'),
             'customer_wa'        => $clean_wa,
             'purchase_date'      => $purchase_date,
@@ -300,7 +320,7 @@ class Returns extends MY_Controller {
             'current_keterangan' => $this->input->post('keterangan'),
             'evidence_photo'     => $all_photos,
             'evidence_video'     => $video_name,
-            'status'             => 'received',
+            'status'             => $default_status, // <--- Memakai variabel dinamis
             'created_by'         => $user_id
         ];
 
@@ -470,6 +490,7 @@ class Returns extends MY_Controller {
 
         $simpan = $this->m_retur->update_status_with_history($id, $data_update, $history_msg, $files_json);
         
+        
         $this->session->set_flashdata('message', $simpan ? 'Berhasil update!' : 'Gagal update!');
         $this->session->set_flashdata('type', $simpan ? 'success' : 'error');
         redirect('returns');
@@ -498,32 +519,33 @@ class Returns extends MY_Controller {
 
     public function update_data()
     {
-        // 1. Ambil ID dan data lama
+        // 1. Ambil ID dan data lama dari input hidden
         $id = $this->input->post('id');
-        $old_photos = $this->input->post('old_photos'); // Format string dari DB (hasil implode)
+        $old_photos = $this->input->post('old_photos'); // String berisi nama file dipisah koma
         $old_video = $this->input->post('old_video');
 
-        // Load library di awal agar tersedia untuk foto maupun video
         $this->load->library('upload');
 
-        // --- 1. PROSES MULTIPLE PHOTOS (SINKRON DENGAN STORE) ---
+        // --- 2. PROSES MULTIPLE PHOTOS (REPLACE LOGIC) ---
         $photo_list = [];
+        // Cek apakah user memilih file foto baru
         if (!empty($_FILES['evidence_photos']['name'][0])) {
             
-            // LOGIKA AUTO-REPLACE: Hapus fisik foto lama jika ada upload baru
+            // Hapus fisik foto lama dari folder jika ada upload baru
             if (!empty($old_photos)) {
                 $old_photos_array = explode(',', $old_photos);
                 foreach ($old_photos_array as $photo_name) {
                     $path_old = './assets/uploads/returns/images/' . trim($photo_name);
                     if (file_exists($path_old) && !empty($photo_name)) {
-                        unlink($path_old); // Hapus file .webp lama
+                        unlink($path_old);
                     }
                 }
             }
 
+            // Proses Upload Foto Baru
             $files = $_FILES['evidence_photos'];
             foreach ($files['name'] as $key => $image) {
-                if ($key > 2) break; // Batasi maksimal 3 foto seperti di store
+                if ($key > 2) break; // Batasi maksimal 3 foto
                 
                 if (!empty($files['name'][$key])) {
                     $_FILES['temp_multi']['name']     = $files['name'][$key];
@@ -532,7 +554,6 @@ class Returns extends MY_Controller {
                     $_FILES['temp_multi']['error']    = $files['error'][$key];
                     $_FILES['temp_multi']['size']     = $files['size'][$key];
 
-                    // Path sesuai fungsi store
                     $config['upload_path']   = './assets/uploads/returns/images/';
                     $config['allowed_types'] = 'jpg|jpeg|png';
                     $config['encrypt_name']  = TRUE;
@@ -540,17 +561,18 @@ class Returns extends MY_Controller {
                     $this->upload->initialize($config);
 
                     if ($this->upload->do_upload('temp_multi')) {
-                        // Gunakan helper private _convert_to_webp yang sudah Mas Eko miliki
+                        // Pakai helper private _convert_to_webp milik Mas Eko
                         $photo_list[] = $this->_convert_to_webp($this->upload->data());
                     }
                 }
             }
+            $final_photos = implode(',', $photo_list);
+        } else {
+            // Jika tidak ada upload baru, gunakan foto lama
+            $final_photos = $old_photos;
         }
 
-        // Jika ada upload baru, gunakan yang baru. Jika tidak, tetap yang lama.
-        $final_photos = !empty($photo_list) ? implode(',', $photo_list) : $old_photos;
-
-        // --- 2. PROSES VIDEO (AUTO-REPLACE) ---
+        // --- 3. PROSES VIDEO (REPLACE LOGIC) ---
         $new_video = $old_video;
         if (!empty($_FILES['evidence_video']['name'])) {
             $config_v['upload_path']   = './assets/uploads/returns/videos/';
@@ -564,16 +586,25 @@ class Returns extends MY_Controller {
                 $videoData = $this->upload->data();
                 $new_video = $videoData['file_name'];
                 
-                // Hapus video lama dari folder agar tidak menumpuk
+                // Hapus video lama jika ada
                 if ($old_video && file_exists('./assets/uploads/returns/videos/' . $old_video)) {
                     unlink('./assets/uploads/returns/videos/' . $old_video);
                 }
             }
         }
 
-        // --- 3. LOGIKA HITUNG TANGGAL EXPIRED (SINKRON DENGAN STORE) ---
+        // --- 4. LOGIKA WHATSAPP (OPSIONAL & CLEANING) ---
+        $raw_wa = $this->input->post('customer_wa');
+        if (!empty($raw_wa)) {
+            // Buang angka 0 atau 62 di depan untuk menghindari dobel '6262'
+            $clean_wa = '62' . ltrim(ltrim($raw_wa, '62'), '0');
+        } else {
+            $clean_wa = null; // Boleh kosong di DB
+        }
+
+        // --- 5. LOGIKA HITUNG TANGGAL EXPIRED GARANSI ---
         $purchase_date = $this->input->post('purchase_date');
-        $duration = $this->input->post('warranty_expiry'); 
+        $duration = $this->input->post('warranty_expiry'); // Dari select dropdown
         
         if ($duration > 0) {
             $months = $duration * 12;
@@ -582,7 +613,10 @@ class Returns extends MY_Controller {
             $warranty_expiry = $purchase_date; 
         }
 
-        // --- 4. UPDATE DATABASE (TABLE: tr_returns) ---
+        // --- 6. EKSEKUSI UPDATE KE DATABASE ---
+        $this->db->trans_start(); // Mulai transaksi agar data konsisten
+
+        // Update Tabel Header (tr_returns)
         $data_header = [
             'order_number'   => $this->input->post('order_number'),
             'type_id'        => $this->input->post('type_id'),
@@ -591,14 +625,14 @@ class Returns extends MY_Controller {
             'purchase_date'  => $purchase_date,
             'received_date'  => $this->input->post('received_date'),
             'customer_name'  => $this->input->post('customer_name'),
-            'customer_wa'    => '62' . ltrim($this->input->post('customer_wa'), '0'),
+            'customer_wa'    => $clean_wa,
             'evidence_photo' => $final_photos,
             'evidence_video' => $new_video,
             'updated_at'     => date('Y-m-d H:i:s')
         ];
         $this->db->where('id', $id)->update('tr_returns', $data_header);
 
-        // --- 5. UPDATE DATABASE (TABLE: tr_return_items) ---
+        // Update Tabel Item (tr_return_items)
         $data_item = [
             'product_name'    => $this->input->post('product_name'),
             'warranty_expiry' => $warranty_expiry,
@@ -606,8 +640,15 @@ class Returns extends MY_Controller {
         ];
         $this->db->where('return_id', $id)->update('tr_return_items', $data_item);
 
-        // --- 6. SELESAI ---
-        $this->session->set_flashdata('message', 'updated');
+        $this->db->trans_complete(); // Selesai transaksi
+
+        // --- 7. REDIRECT & NOTIFIKASI ---
+        if ($this->db->trans_status() === FALSE) {
+            $this->session->set_flashdata(['message' => 'Gagal mengupdate data!', 'type' => 'error']);
+        } else {
+            $this->session->set_flashdata(['message' => 'Data retur berhasil diperbarui', 'type' => 'success']);
+        }
+
         redirect('returns');
     }
 }

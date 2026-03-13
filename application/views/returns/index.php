@@ -8,11 +8,11 @@
         <div class="card-body">
             <form action="<?= base_url('returns'); ?>" method="GET">
                 <div class="row">
-                    <div class="col-md-3 mb-3">
+                    <div class="col-md-2 mb-3">
                         <label>Dari Tanggal</label>
                         <input type="date" name="start_date" class="form-control" value="<?= $filter['start_date'] ?? '' ?>">
                     </div>
-                    <div class="col-md-3 mb-3">
+                    <div class="col-md-2 mb-3">
                         <label>Sampai Tanggal</label>
                         <input type="date" name="end_date" class="form-control" value="<?= $filter['end_date'] ?? '' ?>">
                     </div>
@@ -29,6 +29,22 @@
                             <option value="shipped" <?= $filter['status'] == 'shipped' ? 'selected' : '' ?>>Shipped</option>
                             <option value="completed" <?= $filter['status'] == 'completed' ? 'selected' : '' ?>>Completed</option>
                             <option value="rejected" <?= $filter['status'] == 'rejected' ? 'selected' : '' ?>>Rejected</option>
+                            
+                            <option value="user complain" <?= $filter['status'] == 'user complain' ? 'selected' : '' ?>>User Complain</option>
+                            <option value="aju banding" <?= $filter['status'] == 'aju banding' ? 'selected' : '' ?>>Aju Banding</option>
+                            <option value="menang banding" <?= $filter['status'] == 'menang banding' ? 'selected' : '' ?>>Menang Banding</option>
+                            <option value="kalah banding" <?= $filter['status'] == 'kalah banding' ? 'selected' : '' ?>>Kalah Banding</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2 mb-3">
+                        <label>Tipe Retur</label>
+                        <select name="type_id" class="form-control">
+                            <option value="">-- Semua --</option>
+                            <?php foreach($return_types as $t): ?>
+                                <option value="<?= $t['id']; ?>" <?= $filter['type_id'] == $t['id'] ? 'selected' : '' ?>>
+                                    <?= $t['type_name']; ?>
+                                </option>
+                            <?php endforeach; ?>
                         </select>
                     </div>
                     <div class="col-md-2 mb-3">
@@ -72,6 +88,7 @@
                             <th>Tgl Masuk</th>
                             <th>Customer</th>
                             <th>Store/Platform</th>
+                            <th>Tipe Retur</th>
                             <th>Status</th>
                             <th>Aksi</th>
                         </tr>
@@ -79,7 +96,10 @@
                     <tbody>
                         <?php $no = 1; ?>
                         <?php foreach ($returns as $r) : 
-                            // --- PERBAIKAN LOGIKA BADGE SESUAI CSS KAMU ---
+                            
+                            // BARIS CONTINUE SUDAH DIHAPUS AGAR DATA MUNCUL
+                            
+                            // --- PERBAIKAN LOGIKA BADGE SESUAI CSS ---
                             switch ($r['status']) {
                                 case 'received':
                                     $badge = ['class' => 'badge-received', 'label' => 'Received']; 
@@ -99,6 +119,21 @@
                                 case 'rejected':
                                     $badge = ['class' => 'badge-rejected', 'label' => 'Rejected']; 
                                     break;
+                                
+                                // --- STATUS KOMPLAIN BARU ---
+                                case 'user complain':
+                                    $badge = ['class' => 'badge-danger', 'label' => 'User Complain']; 
+                                    break;
+                                case 'aju banding':
+                                    $badge = ['class' => 'badge-warning', 'label' => 'Aju Banding']; 
+                                    break;
+                                case 'menang banding':
+                                    $badge = ['class' => 'badge-success', 'label' => 'Menang Banding']; 
+                                    break;
+                                case 'kalah banding':
+                                    $badge = ['class' => 'badge-dark', 'label' => 'Kalah Banding']; 
+                                    break;
+
                                 // Status yang tidak ada di CSS spesifik dialirkan ke processing
                                 case 'to_vendor':
                                 case 'processing':
@@ -133,6 +168,9 @@
                             <td>
                                 <span class="small font-weight-bold"><?= $r['store_name']; ?></span><br>
                                 <span class="badge badge-light border"><?= $r['platform_name']; ?></span>
+                            </td>
+                            <td>
+                                <span class="badge badge-primary mb-1">#<?= $r['type_name']; ?></span><br>
                             </td>
                             <td class="text-center">
                                 <span class="badge <?= $badge['class']; ?> px-3 py-2 text-uppercase" style="font-size: 0.7rem; border-radius: 50px;">
@@ -178,11 +216,13 @@
                                                 <i class="fas fa-edit fa-sm fa-fw mr-2 text-warning"></i> Edit Data
                                             </a>
                                             <a class="dropdown-item update-status-btn" href="javascript:void(0)" 
-                                                data-toggle="modal" data-target="#updateStatusModal" 
+                                                data-toggle="modal" 
+                                                data-target="#updateStatusModal" 
                                                 data-id="<?= $r['id']; ?>" 
                                                 data-number="<?= $r['return_number']; ?>" 
-                                                data-status="<?= $r['status']; ?>">
-                                                <i class="fas fa-sync-alt fa-sm fa-fw mr-2 text-info"></i> Update Status
+                                                data-status="<?= $r['status']; ?>"
+                                                data-type="<?= strtolower($r['type_name'] ?? ''); ?>">
+                                                    <i class="fas fa-sync-alt fa-sm fa-fw mr-2 text-info"></i> Update Status
                                             </a>
                                             <div class="dropdown-divider"></div>
                                             <a class="dropdown-item font-weight-bold text-success" href="javascript:void(0)" 
@@ -308,50 +348,74 @@
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    let checkJquery = setInterval(function() {
-        if (window.jQuery) {
-            clearInterval(checkJquery);
-            $('.update-status-btn').on('click', function() {
-                const id = $(this).data('id');
-                const number = $(this).data('number');
-                const status = $(this).data('status');
+    document.addEventListener('DOMContentLoaded', function() {
+        // 1. Simpan template status original saat halaman pertama kali dimuat
+        const originalStatusHtml = $('#modal_status').html();
 
-                $('#modal_id').val(id);
-                $('#display_return_number').text(number);
-                $('#modal_status').val(status);
+        let checkJquery = setInterval(function() {
+            if (window.jQuery) {
+                clearInterval(checkJquery);
                 
-                toggleStatusFields(status);
-            });
+                // FIX: Menggunakan Event Delegation (document on click) 
+                // Agar tombol di halaman 2, 3, dst tetap jalan.
+                $(document).on('click', '.update-status-btn', function() {
+                    const id = $(this).data('id');
+                    const number = $(this).data('number');
+                    const status = $(this).data('status');
+                    const type = $(this).data('type'); 
+
+                    // Set data ke input modal
+                    $('#modal_id').val(id);
+                    $('#display_return_number').text(number);
+                    
+                    const statusDropdown = $('#modal_status');
+                    
+                    // Reset UI: Sembunyikan semua field opsional dulu
+                    $('#field_evidence, #field_ready, #field_shipped, #receiver_detail').hide();
+                    $('#is_different_receiver').prop('checked', false);
+
+                    if (type === 'complain' || type === 'masuk komplain marketplace') {
+                        // Ganti Pilihan Status khusus Complain
+                        statusDropdown.html(`
+                            <option value="user complain">User Complain</option>
+                            <option value="aju banding">Aju Banding</option>
+                            <option value="menang banding">Menang Banding</option>
+                            <option value="kalah banding">Kalah Banding</option>
+                        `);
+                        statusDropdown.val(status);
+                    } else {
+                        // Balikkan ke status normal (Received, Checking, dll)
+                        statusDropdown.html(originalStatusHtml);
+                        statusDropdown.val(status);
+                        
+                        // Jalankan toggle untuk memunculkan field (Resi/Alamat) jika statusnya Ready/Shipped/Checking
+                        toggleStatusFields(status);
+                    }
+                });
+            }
+        }, 100);
+    });
+
+    // Fungsi ini dipanggil saat dropdown status diubah manual atau saat modal dibuka
+    function toggleStatusFields(val) {
+        $('#field_ready').hide();
+        $('#field_shipped').hide();
+        $('#field_evidence').hide();
+        
+        const isComplainStatus = ['user complain', 'aju banding', 'menang banding', 'kalah banding'].includes(val);
+        if (isComplainStatus) return;
+
+        if (val === 'ready') {
+            $('#field_ready').show();
+        } else if (val === 'shipped') {
+            $('#field_shipped').show();
+        } else if (val === 'checking' || val === 'from_vendor') {
+            $('#field_evidence').show();
         }
-    }, 100);
-});
-
-function toggleStatusFields(val) {
-    const fieldReady = document.getElementById('field_ready');
-    const fieldShipped = document.getElementById('field_shipped');
-    const fieldEvidence = document.getElementById('field_evidence');
-    
-    // Default sembunyikan semua panel tambahan
-    fieldReady.style.display = 'none';
-    fieldShipped.style.display = 'none';
-    fieldEvidence.style.display = 'none';
-
-    // Panel Alamat HANYA muncul jika status 'ready'
-    // (from_vendor tidak perlu input alamat lagi)
-    if (val === 'ready') {
-        fieldReady.style.display = 'block';
-    } else if (val === 'shipped') {
-        fieldShipped.style.display = 'block';
-    } 
-    // TAMBAHKAN KONDISI INI
-    else if (val === 'checking' || val === 'from_vendor') {
-        fieldEvidence.style.display = 'block';
     }
-}
 
-function toggleReceiverDetail(isChecked) {
-    const detail = document.getElementById('receiver_detail');
-    detail.style.display = isChecked ? 'block' : 'none';
-}
+    function toggleReceiverDetail(isChecked) {
+        if(isChecked) $('#receiver_detail').show();
+        else $('#receiver_detail').hide();
+    }
 </script>

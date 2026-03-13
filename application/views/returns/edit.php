@@ -120,8 +120,16 @@
                 </div>
                 <div class="col-md-6">
                     <div class="form-group">
-                        <label>WhatsApp Customer (+62)</label>
-                        <input type="number" name="customer_wa" class="form-control" value="<?= $return['customer_wa']; ?>" required>
+                        <label>WhatsApp Customer</label>
+                        <div class="input-group">
+                            <div class="input-group-prepend">
+                                <span class="input-group-text">+62</span>
+                            </div>
+                            <input type="number" name="customer_wa" class="form-control" 
+                                value="<?= ltrim($return['customer_wa'], '62'); ?>" 
+                                placeholder="812345678">
+                        </div>
+                        <small class="text-muted">Opsional. Masukkan angka saja tanpa nol/62 di depan.</small>
                     </div>
                 </div>
             </div>

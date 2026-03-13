@@ -118,9 +118,9 @@
                                         <div class="input-group-prepend">
                                             <span class="input-group-text">+62</span>
                                         </div>
-                                        <input type="number" name="customer_wa" class="form-control" placeholder="8123456789" required>
+                                        <input type="number" name="customer_wa" class="form-control" placeholder="8123456789">
                                     </div>
-                                    <small class="text-muted">Masukkan angka saja (tanpa 0 di depan).</small>
+                                    <small class="text-muted">Opsional (Boleh kosong). Masukkan angka saja.</small>
                                 </div>
                             </div>
                         </div>

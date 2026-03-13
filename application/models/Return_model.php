@@ -7,12 +7,13 @@ class Return_model extends CI_Model {
      * Mengambil semua data retur dengan Join Master Data
      * Digunakan oleh Admin
      */
-   public function get_all_returns($filter = []) {
+    public function get_all_returns($filter = []) {
         $this->db->select('
             tr_returns.*, 
             m_stores.store_name, 
             m_platforms.platform_name, 
             m_expeditions.expedition_name,
+            m_return_types.type_name,
             tr_return_items.product_name
         ');
         $this->db->from('tr_returns');
@@ -21,17 +22,25 @@ class Return_model extends CI_Model {
         $this->db->join('m_stores', 'm_stores.id = tr_returns.store_id', 'left');
         $this->db->join('m_platforms', 'm_platforms.id = tr_returns.platform_id', 'left');
         $this->db->join('m_expeditions', 'm_expeditions.id = tr_returns.courier_id', 'left');
+        $this->db->join('m_return_types', 'm_return_types.id = tr_returns.type_id', 'left');
         $this->db->join('tr_return_items', 'tr_return_items.return_id = tr_returns.id', 'left');
 
-        // Filter SQL (Tanggal & Status)
+        // Filter Tanggal
         if (!empty($filter['start_date'])) {
             $this->db->where('tr_returns.received_date >=', $filter['start_date']);
         }
         if (!empty($filter['end_date'])) {
             $this->db->where('tr_returns.received_date <=', $filter['end_date']);
         }
+        
+        // Filter Status
         if (!empty($filter['status'])) {
             $this->db->where('tr_returns.status', $filter['status']);
+        }
+
+        // Filter Tipe (Jika ada filter dropdown Tipe/Lama di Sistem)
+        if (!empty($filter['type_id'])) {
+            $this->db->where('tr_returns.type_id', $filter['type_id']);
         }
 
         $this->db->order_by('tr_returns.received_date', 'DESC');
