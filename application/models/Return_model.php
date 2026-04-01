@@ -296,4 +296,59 @@ class Return_model extends CI_Model {
         // kecuali kamu ingin menghitung hari input sebagai hari ke-1.
         return ($working_days > 0) ? $working_days - 1 : 0;
     }
+    // Mencari ID Vendor berdasarkan nama. Jika tidak ada, insert otomatis. Jika kosong dari Excel, otomatis diset menjadi "-"
+    public function get_or_create_vendor($vendor_name) {
+        // Hapus spasi berlebih di awal/akhir
+        $vendor_name = trim($vendor_name);
+        
+        // JIKA KOSONG, UBAH MENJADI "-"
+        if(empty($vendor_name)) {
+            $vendor_name = '-';
+        }
+
+        // Cek apakah vendor (termasuk vendor "-") sudah ada di database
+        $this->db->where('vendor_name', $vendor_name);
+        $query = $this->db->get('m_vendors');
+
+        if($query->num_rows() > 0) {
+            // Jika sudah ada, kembalikan ID-nya
+            return $query->row()->id;
+        } else {
+            // Jika belum ada, buat vendor baru dan kembalikan ID barunya
+            $this->db->insert('m_vendors', ['vendor_name' => $vendor_name]);
+            return $this->db->insert_id();
+        }
+    }
+
+    /**
+     * Menyimpan data import secara massal menggunakan Database Transaction
+     */
+    public function insert_bulk_returns($bulk_data) {
+        $this->db->trans_start(); // Mulai transaksi DB
+        $user_id = $this->session->userdata('user_id');
+
+        foreach($bulk_data as $row) {
+            $header = $row['header'];
+            $item = $row['item'];
+
+            // Insert Header
+            $this->db->insert('tr_returns', $header);
+            $return_id = $this->db->insert_id();
+
+            // Insert Item
+            $item['return_id'] = $return_id;
+            $this->db->insert('tr_return_items', $item);
+
+            // Insert History (Otomatis log pertama kali barang masuk sistem)
+            $this->db->insert('tr_return_history', [
+                'return_id'  => $return_id,
+                'status'     => $header['status'],
+                'keterangan' => 'Barang diinput massal via Import Excel.',
+                'created_by' => $user_id
+            ]);
+        }
+
+        $this->db->trans_complete(); // Selesaikan / Commit transaksi
+        return $this->db->trans_status();
+    }
 } // Penutup Class Return_model

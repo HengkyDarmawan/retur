@@ -263,3 +263,20 @@ function convert_to_webp($source_path, $quality = 80) {
 
     return basename($output_path);
 }
+//tanggal
+if (!function_exists('format_indo')) {
+    function format_indo($date) {
+        if (!$date || $date == '0000-00-00') return '-';
+        
+        $BulanIndo = [
+            "Januari", "Februari", "Maret", "April", "Mei", "Juni", 
+            "Juli", "Agustus", "September", "Oktober", "November", "Desember"
+        ];
+
+        $tahun = substr($date, 0, 4);
+        $bulan = substr($date, 5, 2);
+        $tgl   = substr($date, 8, 2);
+
+        return $tgl . " " . $BulanIndo[(int)$bulan - 1] . " " . $tahun;
+    }
+}

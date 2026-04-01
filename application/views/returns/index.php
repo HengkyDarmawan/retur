@@ -63,6 +63,9 @@
                             <button type="submit" name="export" value="excel" class="btn btn-success ml-1" title="Export Excel">
                                 <i class="fas fa-file-excel"></i>
                             </button>
+                            <button type="button" class="btn btn-info ml-1" data-toggle="modal" data-target="#importExcelModal" title="Import Excel">
+                                <i class="fas fa-file-import"></i>
+                            </button>
                             <a href="<?= base_url('returns'); ?>" class="btn btn-secondary ml-1"><i class="fas fa-undo"></i></a>
                         </div>
                     </div>
@@ -156,7 +159,7 @@
                                 <small class="text-muted"><i class="fas fa-receipt fa-fw"></i> <?= $r['order_number']; ?></small>
                             </td>
                             <td data-order="<?= $r['received_date']; ?>">
-                                <?= date('d/m/Y', strtotime($r['received_date'])); ?><br>
+                                <?= format_indo($r['received_date']); ?><br>
                                 <small class="<?= $aging_class; ?>" title="Dihitung berdasarkan hari kerja (Sabtu, Minggu & Libur Nasional dikecualikan)">
                                     <i class="far fa-clock"></i> <?= $selisih; ?> Hari Kerja
                                 </small>
@@ -251,6 +254,7 @@
     </div>
 </div>
 
+<!-- update modal -->
 <div class="modal fade" id="updateStatusModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <div class="modal-content border-left-info shadow">
@@ -346,7 +350,87 @@
         </div>
     </div>
 </div>
+<!-- import data -->
+<div class="modal fade" id="importExcelModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content border-left-info shadow">
+            <div class="modal-header">
+                <h5 class="modal-title font-weight-bold text-info"><i class="fas fa-file-import"></i> Import Data Retur</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <?= form_open_multipart('returns/import_excel'); ?>
+                <div class="modal-body">
+                    <div class="alert alert-warning small">
+                        <strong>Format Excel (Mulai dari Baris ke-2):</strong><br>
+                        Kolom A: No Order | Kolom B: Nama | Kolom C: Tanggal Masuk (YYYY-MM-DD) | Kolom D: Tanggal Pembelian (YYYY-MM-DD) | Kolom E: Nama Barang | Kolom F: Vendor
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6 form-group">
+                            <label class="font-weight-bold">File Excel (.xlsx)</label>
+                            <input type="file" name="file_excel" class="form-control-file border p-1" accept=".xlsx, .xls" required>
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label class="font-weight-bold">Status Default</label>
+                            <select name="status" class="form-control" required>
+                                <option value="received">Received (Diterima)</option>
+                                <option value="checking">Checking (Sedang Dicek)</option>
+                                <option value="user complain">User Complain</option>
+                            </select>
+                        </div>
+                    </div>
 
+                    <div class="row">
+                        <div class="col-md-6 form-group">
+                            <label class="font-weight-bold">Jenis Retur</label>
+                            <select name="type_id" class="form-control" required>
+                                <?php foreach($return_types as $t): ?>
+                                    <option value="<?= $t['id']; ?>"><?= $t['type_name']; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label class="font-weight-bold">Masa Garansi</label>
+                            <select name="warranty_duration" class="form-control" required>
+                                <option value="0.5">6 Bulan</option>
+                                <?php for($i = 1; $i <= 10; $i++): ?>
+                                    <option value="<?= $i; ?>" <?= ($i == 1) ? 'selected' : ''; ?>><?= $i; ?> Tahun</option>
+                                <?php endfor; ?>
+                                <option value="0">Habis / Tanpa Garansi</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6 form-group">
+                            <label class="font-weight-bold">Store / Toko</label>
+                            <select name="store_id" class="form-control" required>
+                                <?php foreach($stores as $s): ?>
+                                    <option value="<?= $s['id']; ?>"><?= $s['store_name']; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-6 form-group">
+                            <label class="font-weight-bold">Platform</label>
+                            <select name="platform_id" class="form-control" required>
+                                <?php foreach($platforms as $p): ?>
+                                    <option value="<?= $p['id']; ?>"><?= $p['platform_name']; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-info"><i class="fas fa-upload"></i> Proses Import</button>
+                </div>
+            <?= form_close(); ?>
+        </div>
+    </div>
+</div>
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // 1. Simpan template status original saat halaman pertama kali dimuat

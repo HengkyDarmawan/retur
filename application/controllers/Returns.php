@@ -7,6 +7,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use PhpOffice\PhpSpreadsheet\Style\Alignment;
 use PhpOffice\PhpSpreadsheet\Style\Border;
 use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Shared\Date;
 
 class Returns extends MY_Controller {
 
@@ -74,6 +75,8 @@ class Returns extends MY_Controller {
         $data['filter']  = $filter;
         $data['return_types'] = $this->db->get('m_return_types')->result_array(); // <-- Tambahan
         $data['couriers'] = $this->db->get('m_expeditions')->result_array();
+        $data['stores'] = $this->db->get('m_stores')->result_array();
+        $data['platforms'] = $this->db->get('m_platforms')->result_array();
 
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -81,7 +84,126 @@ class Returns extends MY_Controller {
         $this->load->view('returns/index', $data);
         $this->load->view('templates/footer');
     }
+    //import
+    public function import_excel() {
+        if (!user_can('add', 'returns')) {
+            $this->session->set_flashdata(['message' => 'Akses ditolak!', 'type' => 'error']);
+            redirect('returns');
+        }
 
+        $status_global      = $this->input->post('status');
+        $type_id_global     = $this->input->post('type_id');
+        $warranty_duration  = $this->input->post('warranty_duration');
+        $store_id_global    = $this->input->post('store_id');
+        $platform_id_global = $this->input->post('platform_id');
+        $user_id            = $this->session->userdata('user_id');
+
+        $config['upload_path']   = './assets/uploads/';
+        $config['allowed_types'] = 'xls|xlsx';
+        $config['encrypt_name']  = TRUE;
+        
+        $this->load->library('upload', $config);
+        
+        if (!$this->upload->do_upload('file_excel')) {
+            $this->session->set_flashdata(['message' => $this->upload->display_errors(), 'type' => 'error']);
+            redirect('returns');
+        }
+
+        $file_data = $this->upload->data();
+        $file_path = $file_data['full_path'];
+
+        try {
+            $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file_path);
+            $sheetData   = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
+            
+            $bulk_data = [];
+            $current_seq = (int)$this->m_retur->generate_daily_sequence();
+
+            for ($i = 2; $i <= count($sheetData); $i++) {
+                $row = $sheetData[$i];
+                if (empty($row['A'])) continue;
+
+                // --- LOGIKA BARU: PENERJEMAH TANGGAL INDONESIA ---
+                $fixDate = function($val) {
+                    if (empty($val)) return date('Y-m-d');
+                    
+                    // 1. Jika formatnya angka (Serial Date Excel)
+                    if (is_numeric($val)) {
+                        return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($val)->format('Y-m-d');
+                    }
+                    
+                    // 2. Jika formatnya Teks (Januari, Agustus, dsb)
+                    $bln_indo = [
+                        'januari' => 'january', 'februari' => 'february', 'maret' => 'march',
+                        'april' => 'april', 'mei' => 'may', 'juni' => 'june',
+                        'juli' => 'july', 'agustus' => 'august', 'september' => 'september',
+                        'oktober' => 'october', 'november' => 'november', 'desember' => 'december'
+                    ];
+                    
+                    // Bersihkan string dan ubah ke lowercase untuk pencocokan
+                    $clean_val = strtolower(trim($val));
+                    $translated_val = strtr($clean_val, $bln_indo); // Tukar indo ke inggris
+                    
+                    // Coba parsing setelah diterjemahkan
+                    $timestamp = strtotime(str_replace('/', '-', $translated_val));
+                    
+                    return $timestamp ? date('Y-m-d', $timestamp) : date('Y-m-d');
+                };
+
+                $received_date = $fixDate($row['C']); 
+                $purchase_date = $fixDate($row['D']); 
+
+                // Handling Vendor Kosong -> "-"
+                $vendor_name = isset($row['F']) ? trim($row['F']) : '';
+                $vendor_id   = $this->m_retur->get_or_create_vendor($vendor_name);
+
+                // Generate Nomor Retur
+                $clean_order_ref = preg_replace('/[^a-zA-Z0-9]/', '', $row['A']);
+                $last_4_order    = strtoupper(substr($clean_order_ref, -4));
+                $return_number   = "RET-" . date('Ymd') . "-" . $last_4_order . "-" . str_pad($current_seq, 4, '0', STR_PAD_LEFT);
+                $current_seq++;
+
+                // Hitung Masa Garansi
+                $months = $warranty_duration * 12;
+                $warranty_expiry = ($warranty_duration > 0) 
+                                ? date('Y-m-d', strtotime("+$months months", strtotime($purchase_date))) 
+                                : $purchase_date;
+
+                $bulk_data[] = [
+                    'header' => [
+                        'return_number' => $return_number,
+                        'order_number'  => $row['A'],
+                        'store_id'      => $store_id_global,
+                        'platform_id'   => $platform_id_global,
+                        'type_id'       => $type_id_global,
+                        'customer_name' => $row['B'] ?? '-',
+                        'purchase_date' => $purchase_date,
+                        'received_date' => $received_date,
+                        'status'        => $status_global,
+                        'created_by'    => $user_id
+                    ],
+                    'item' => [
+                        'product_name'    => $row['E'] ?? '-',
+                        'vendor_id'       => $vendor_id,
+                        'warranty_expiry' => $warranty_expiry
+                    ]
+                ];
+            }
+
+            if (!empty($bulk_data)) {
+                $this->m_retur->insert_bulk_returns($bulk_data);
+                $this->session->set_flashdata(['message' => count($bulk_data) . ' data berhasil diimport', 'type' => 'success']);
+            }
+
+        } catch (Exception $e) {
+            $this->session->set_flashdata(['message' => 'Error: ' . $e->getMessage(), 'type' => 'error']);
+        }
+
+        if (file_exists($file_path)) unlink($file_path);
+        redirect('returns');
+    }
+
+    //ekspor data
     private function export_excel($data_to_export) {
         // 1. Bersihkan lingkungan agar file tidak korup
         error_reporting(0);
