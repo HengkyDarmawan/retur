@@ -121,7 +121,7 @@
             </div>
         </div>
     </div>
-
+    <!-- disini -->
     <div class="card shadow mb-4 border-left-danger">
         <div class="card-header py-3 bg-white d-flex justify-content-between align-items-center border-0">
             <h6 class="m-0 font-weight-bold text-danger">
@@ -138,42 +138,241 @@
                             <th class="border-0 text-center">Tgl Terima</th>
                             <th class="border-0">Toko / Platform</th>
                             <th class="border-0">Pelanggan</th>
+                            <th class="border-0 text-center">Jenis Retur</th>   <!-- BARU -->
+                            <th class="border-0 text-center">Status</th>         <!-- BARU -->
                             <th class="border-0 text-center">Lama Inap</th>
                             <th class="border-0 text-center pr-4">Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if(!empty($list_overdue_30)): foreach($list_overdue_30 as $row): ?>
+                        <?php if (!empty($list_overdue_30)): foreach ($list_overdue_30 as $row):
+
+                            // Badge Jenis Retur
+                            $type_upper = strtoupper(trim($row['type_name'] ?? ''));
+                            switch ($type_upper) {
+                                case 'KLAIM GARANSI':
+                                    $type_badge = 'badge-success';  break;
+                                case 'RUSAK':
+                                    $type_badge = 'badge-warning';  break;
+                                case 'SALAH KIRIM':
+                                    $type_badge = 'badge-primary';  break;
+                                case 'MASUK KOMPLAIN MARKETPLACE':
+                                    $type_badge = 'badge-danger';   break;
+                                default:
+                                    $type_badge = 'badge-secondary';
+                            }
+
+                            // Badge Status
+                            switch ($row['status']) {
+                                case 'received':       $s_badge = 'badge-primary';   $s_label = 'Received';       break;
+                                case 'checking':       $s_badge = 'badge-warning';   $s_label = 'Checking';       break;
+                                case 'to_vendor':      $s_badge = 'badge-info';      $s_label = 'To Vendor';      break;
+                                case 'processing':     $s_badge = 'badge-info';      $s_label = 'Processing';     break;
+                                case 'from_vendor':    $s_badge = 'badge-info';      $s_label = 'From Vendor';    break;
+                                case 'ready':          $s_badge = 'badge-success';   $s_label = 'Ready';          break;
+                                case 'shipped':        $s_badge = 'badge-success';   $s_label = 'Shipped';        break;
+                                case 'completed':      $s_badge = 'badge-success';   $s_label = 'Completed';      break;
+                                case 'rejected':       $s_badge = 'badge-dark';      $s_label = 'Rejected';       break;
+                                case 'user complain':  $s_badge = 'badge-danger';    $s_label = 'User Complain';  break;
+                                case 'aju banding':    $s_badge = 'badge-warning';   $s_label = 'Aju Banding';    break;
+                                case 'menang banding': $s_badge = 'badge-success';   $s_label = 'Menang Banding'; break;
+                                case 'kalah banding':  $s_badge = 'badge-dark';      $s_label = 'Kalah Banding';  break;
+                                default:               $s_badge = 'badge-secondary'; $s_label = $row['status'];
+                            }
+                        ?>
                         <tr>
                             <td class="pl-4 font-weight-bold text-primary">#<?= $row['return_number']; ?></td>
-                            <td class="text-center small"><?= date('d/m/Y', strtotime($row['received_date'])); ?></td>
-                            <td>
-                                <div class="font-weight-bold"><?= $row['store_name']; ?></div>
-                                <div class="badge badge-light border text-muted small px-2 py-0"><?= $row['platform_name']; ?></div>
+
+                            <td class="text-center small">
+                                <?= date('d/m/Y', strtotime($row['received_date'])); ?>
                             </td>
-                            <td><?= $row['customer_name']; ?></td>
-                            <td class="text-center">
-                                <span class="text-danger font-weight-bold">
-                                    <i class="far fa-clock"></i> <?= $row['masa_tunggu']; ?> Hari Kerja
+
+                            <td>
+                                <div class="font-weight-bold small"><?= $row['store_name']; ?></div>
+                                <span class="badge badge-light border text-muted px-2 py-0" style="font-size:0.7rem">
+                                    <?= $row['platform_name']; ?>
                                 </span>
                             </td>
+
+                            <td class="small"><?= $row['customer_name']; ?></td>
+
+                            <!-- Kolom Jenis Retur -->
+                            <td class="text-center">
+                                <span class="badge <?= $type_badge; ?> px-2 py-1" style="font-size:0.7rem; border-radius:50px;">
+                                    <?= $row['type_name'] ?? '-'; ?>
+                                </span>
+                            </td>
+
+                            <!-- Kolom Status -->
+                            <td class="text-center">
+                                <span class="badge <?= $s_badge; ?> px-2 py-1" style="font-size:0.7rem; border-radius:50px; text-transform:uppercase;">
+                                    <?= $s_label; ?>
+                                </span>
+                            </td>
+
+                            <td class="text-center">
+                                <span class="text-danger font-weight-bold small">
+                                    <i class="far fa-clock"></i> <?= $row['masa_tunggu']; ?> HK
+                                </span>
+                            </td>
+
                             <td class="text-center pr-4">
-                                <a href="<?= base_url('returns/detail/'.$row['id']); ?>" class="btn btn-outline-primary btn-sm btn-circle shadow-sm" title="Buka Detail">
-                                    <i class="fas fa-external-link-alt"></i>
-                                </a>
+                                <div class="dropdown no-arrow">
+                                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-toggle="dropdown">
+                                        <i class="fas fa-cog"></i>
+                                    </button>
+                                    <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in">
+                                        <a class="dropdown-item" href="<?= base_url('returns/detail/'.$row['id']); ?>">
+                                            <i class="fas fa-eye fa-sm fa-fw mr-2 text-primary"></i> Detail
+                                        </a>
+                                        <a class="dropdown-item" href="<?= base_url('returns/edit/'.$row['id']); ?>">
+                                            <i class="fas fa-edit fa-sm fa-fw mr-2 text-warning"></i> Edit Data
+                                        </a>
+                                        <a class="dropdown-item update-status-btn" href="javascript:void(0)"
+                                            data-toggle="modal"
+                                            data-target="#updateStatusModal"
+                                            data-id="<?= $row['id']; ?>"
+                                            data-number="<?= $row['return_number']; ?>"
+                                            data-status="<?= $row['status']; ?>"
+                                            data-type="<?= strtolower(trim($row['type_name'] ?? '')); ?>">
+                                            <i class="fas fa-sync-alt fa-sm fa-fw mr-2 text-info"></i> Update Status
+                                        </a>
+                                    </div>
+                                </div>
                             </td>
                         </tr>
                         <?php endforeach; else: ?>
                         <tr>
-                            <td colspan="6" class="text-center py-5">
-                                <img src="<?= base_url('assets/img/undraw_check.svg'); ?>" style="width: 120px; opacity: 0.5;" class="mb-3">
-                                <p class="text-muted font-italic mb-0">Hebat! Tidak ada barang yang mengendap lebih dari 30 hari.</p>
+                            <td colspan="8" class="text-center py-5">
+                                <i class="fas fa-check-circle fa-3x text-success mb-3 d-block"></i>
+                                <p class="text-muted font-italic mb-0">Tidak ada barang yang mengendap lebih dari 30 hari.</p>
                             </td>
                         </tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
             </div>
+        </div>
+    </div>
+</div>
+
+
+<div class="modal fade" id="updateStatusModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content border-left-info shadow">
+            <div class="modal-header">
+                <h5 class="modal-title font-weight-bold text-info">
+                    Update Status: <span id="display_return_number"></span>
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+
+            <?= form_open_multipart('returns/update_status'); ?>
+                <div class="modal-body">
+                    <input type="hidden" name="id" id="modal_id">
+
+                    <div class="form-group">
+                        <label class="font-weight-bold">Status Retur</label>
+                        <select name="status" id="modal_status" class="form-control" required
+                                onchange="toggleStatusFields(this.value)">
+                            <option value="received">Received (Diterima)</option>
+                            <option value="checking">Checking (Sedang Dicek)</option>
+                            <option value="to_vendor">To Vendor (Kirim ke Vendor)</option>
+                            <option value="processing">Processing (Proses Perbaikan)</option>
+                            <option value="from_vendor">From Vendor (Kembali dari Vendor)</option>
+                            <option value="ready">Ready (Siap Kirim Balik)</option>
+                            <option value="shipped">Shipped (Sudah Dikirim)</option>
+                            <option value="completed">Completed (Selesai)</option>
+                            <option value="rejected">Rejected (Ditolak)</option>
+                        </select>
+                    </div>
+
+                    <!-- Field Bukti (Checking / From Vendor) -->
+                    <div id="field_evidence" style="display:none;" class="p-3 bg-light rounded mb-3 border border-warning">
+                        <label class="font-weight-bold text-warning">
+                            <i class="fas fa-camera"></i> Upload Foto/Video Bukti
+                        </label>
+                        <input type="file" name="evidence_files[]" class="form-control-file"
+                        multiple accept="image/*,video/*">
+                        <small class="text-muted">Bisa pilih banyak file (JPG, PNG, MP4).</small>
+                    </div>
+
+                    <!-- Field Alamat (Ready) -->
+                    <div id="field_ready" style="display:none;" class="p-3 bg-light rounded mb-3 border">
+                        <div class="form-group">
+                            <label class="font-weight-bold text-primary">
+                                <i class="fas fa-map-marker-alt"></i> Alamat Pengiriman Balik
+                            </label>
+                            <textarea name="shipping_address" class="form-control" rows="2"
+                            placeholder="Masukkan alamat lengkap tujuan..."></textarea>
+                        </div>
+                        <div class="custom-control custom-checkbox">
+                            <input type="checkbox" class="custom-control-input" id="is_different_receiver"
+                            name="is_different_receiver"
+                            onchange="toggleReceiverDetail(this.checked)">
+                            <label class="custom-control-label" for="is_different_receiver">
+                                Nama/No. HP Penerima Berbeda?
+                            </label>
+                        </div>
+                        <div id="receiver_detail" style="display:none;" class="mt-3">
+                            <div class="row">
+                                <div class="col-6">
+                                    <label class="small font-weight-bold">Nama Penerima</label>
+                                    <input type="text" name="receiver_name" class="form-control form-control-sm">
+                                </div>
+                                <div class="col-6">
+                                    <label class="small font-weight-bold">No. WA Penerima</label>
+                                    <input type="text" name="receiver_phone" class="form-control form-control-sm">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Field Ekspedisi & Resi (Shipped) -->
+                    <div id="field_shipped" style="display:none;" class="p-3 bg-light rounded mb-3 border border-info">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="font-weight-bold text-info">Ekspedisi</label>
+                                    <select name="courier_id" class="form-control">
+                                        <option value="">-- Pilih --</option>
+                                        <?php foreach ($couriers as $c): ?>
+                                            <option value="<?= $c['id']; ?>">
+                                                <?= $c['expedition_name']; ?>
+                                            </option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label class="font-weight-bold text-info">Nomor Resi</label>
+                                    <input type="text" name="receipt_number" class="form-control"
+                                    placeholder="No. Resi">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="font-weight-bold text-info">Tanggal Kirim</label>
+                            <input type="date" name="shipping_date" class="form-control"
+                            value="<?= date('Y-m-d'); ?>">
+                        </div>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="font-weight-bold">Keterangan / Catatan</label>
+                        <textarea name="keterangan" id="modal_keterangan" class="form-control" rows="2"
+                        placeholder="Catatan tambahan..."></textarea>
+                    </div>
+                </div>
+
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-info">Update Sekarang</button>
+                </div>
+            <?= form_close(); ?>
         </div>
     </div>
 </div>
@@ -249,4 +448,65 @@
             tooltips: { mode: 'index', intersect: false }
         }
     });
+
+    // SESUDAH — pakai uppercase, konsisten dengan data-type di HTML
+    // Sama persis dengan returns/index.php
+    document.addEventListener('DOMContentLoaded', function() {
+
+        const originalStatusHtml = $('#modal_status').html();
+
+        let checkJquery = setInterval(function() {
+            if (window.jQuery) {
+                clearInterval(checkJquery);
+
+                $(document).on('click', '.update-status-btn', function() {
+                    const id     = $(this).data('id');
+                    const number = $(this).data('number');
+                    const status = $(this).data('status');
+                    const type   = String($(this).data('type') || '').toLowerCase().trim(); // ← lowercase
+
+                    $('#modal_id').val(id);
+                    $('#display_return_number').text(number);
+
+                    const statusDropdown = $('#modal_status');
+
+                    $('#field_evidence, #field_ready, #field_shipped, #receiver_detail').hide();
+                    $('#is_different_receiver').prop('checked', false);
+
+                    // Sama persis dengan index: cek lowercase
+                    if (type === 'complain' || type === 'masuk komplain marketplace') {
+                        statusDropdown.html(`
+                            <option value="user complain">User Complain</option>
+                            <option value="aju banding">Aju Banding</option>
+                            <option value="menang banding">Menang Banding</option>
+                            <option value="kalah banding">Kalah Banding</option>
+                        `);
+                        statusDropdown.val(status);
+                    } else {
+                        statusDropdown.html(originalStatusHtml);
+                        statusDropdown.val(status);
+                        toggleStatusFields(status);
+                    }
+                });
+            }
+        }, 100);
+    });
+
+    function toggleStatusFields(val) {
+        $('#field_ready').hide();
+        $('#field_shipped').hide();
+        $('#field_evidence').hide();
+
+        const isComplainStatus = ['user complain','aju banding','menang banding','kalah banding'].includes(val);
+        if (isComplainStatus) return;
+
+        if      (val === 'ready')                              $('#field_ready').show();
+        else if (val === 'shipped')                            $('#field_shipped').show();
+        else if (val === 'checking' || val === 'from_vendor')  $('#field_evidence').show();
+    }
+
+    function toggleReceiverDetail(isChecked) {
+        if (isChecked) $('#receiver_detail').show();
+        else           $('#receiver_detail').hide();
+    }
 </script>

@@ -26,6 +26,9 @@ class Dashboard extends MY_Controller
         // Data Master Dropdown
         $data['stores']    = $this->db->get('m_stores')->result_array();
         $data['platforms'] = $this->db->get('m_platforms')->result_array();
+        //new
+        $data['couriers'] = $this->db->get('m_expeditions')->result_array();
+        $data['return_types'] = $this->db->get('m_return_types')->result_array();
 
         // Gabungkan data filter untuk dikirim kembali ke View (Input Filter)
         $data = array_merge($data, $filters);

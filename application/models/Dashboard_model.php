@@ -59,30 +59,29 @@ class Dashboard_model extends CI_Model
 
     public function get_overdue_30_days($filters)
     {
-        // Tarik data yang BELUM selesai
-        $this->db->select('tr.*, s.store_name, p.platform_name');
+        // Tambah join m_return_types agar type_name tersedia di view
+        $this->db->select('tr.*, s.store_name, p.platform_name, rt.type_name, e.expedition_name');
         $this->db->from('tr_returns tr');
-        $this->db->join('m_stores s', 's.id = tr.store_id');
-        $this->db->join('m_platforms p', 'p.id = tr.platform_id');
-        $this->db->where_not_in('tr.status', ['completed', 'rejected']);
-        
-        if (!empty($filters['store_id'])) $this->db->where('tr.store_id', $filters['store_id']);
+        $this->db->join('m_stores s','s.id = tr.store_id');
+        $this->db->join('m_platforms p','p.id = tr.platform_id');
+        $this->db->join('m_return_types rt','rt.id = tr.type_id', 'left'); // ← TAMBAHAN
+        $this->db->join('m_expeditions e', 'e.id = tr.courier_id', 'left');
+        $this->db->where_not_in('tr.status', ['completed', 'rejected', 'menang banding', 'kalah banding']);
+
+        if (!empty($filters['store_id']))    $this->db->where('tr.store_id',    $filters['store_id']);
         if (!empty($filters['platform_id'])) $this->db->where('tr.platform_id', $filters['platform_id']);
 
         $results = $this->db->get()->result_array();
-        
+
         $overdue_list = [];
         foreach ($results as $row) {
-            // PANGGIL HELPER: Hitung Hari Kerja (Senin-Jumat & Minus Libur Nasional)
             $working_days = count_working_days($row['received_date']);
-            
             if ($working_days > 20) {
                 $row['masa_tunggu'] = $working_days;
                 $overdue_list[] = $row;
             }
         }
 
-        // Urutkan berdasarkan yang paling lama (Descending)
         usort($overdue_list, function($a, $b) {
             return $b['masa_tunggu'] <=> $a['masa_tunggu'];
         });

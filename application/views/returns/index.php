@@ -1,5 +1,76 @@
 <div class="container-fluid">
     <h1 class="h3 mb-4 text-gray-800"><?= $title; ?></h1>
+    <?php 
+    // ── BANNER DRAFT AKTIF ──
+    if (!empty($active_drafts)): 
+    ?>
+    <div class="card border-left-warning shadow mb-4" id="draftBanner">
+        <div class="card-body py-3">
+            <div class="d-flex align-items-start">
+                <div class="mr-3">
+                    <i class="fas fa-drafting-compass fa-2x text-warning"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="font-weight-bold text-warning mb-1">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        Anda memiliki <?= count($active_drafts); ?> draft import yang belum dipublish
+                    </h6>
+                    <p class="text-muted small mb-2">
+                        Data di bawah sudah tersimpan di database sebagai draft. Lanjutkan review dan publish sebelum data hilang atau tertimpa import baru.
+                    </p>
+
+                    <!-- Daftar draft -->
+                    <div class="table-responsive">
+                        <table class="table table-sm table-borderless mb-0" style="max-width: 700px;">
+                            <thead>
+                                <tr class="text-muted" style="font-size:0.75rem;">
+                                    <th>Draft Key</th>
+                                    <th class="text-center">Jumlah Baris</th>
+                                    <th>Dibuat</th>
+                                    <th>Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php foreach ($active_drafts as $d): ?>
+                                <tr style="font-size:0.8rem;">
+                                    <td>
+                                        <code class="text-warning"><?= $d['draft_key']; ?></code>
+                                        <?php if ($active_draft_key === $d['draft_key']): ?>
+                                            <span class="badge badge-warning ml-1">Aktif</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td class="text-center">
+                                        <span class="badge badge-secondary"><?= $d['total_rows']; ?> baris</span>
+                                    </td>
+                                    <td class="text-muted">
+                                        <?= date('d/m/Y H:i', strtotime($d['created_at'])); ?>
+                                    </td>
+                                    <td>
+                                        <a href="<?= base_url('returns/resume_draft/' . $d['draft_key']); ?>" 
+                                           class="btn btn-warning btn-sm">
+                                            <i class="fas fa-pencil-alt"></i> Lanjutkan
+                                        </a>
+                                        <button type="button" 
+                                                class="btn btn-outline-danger btn-sm btn-discard-draft"
+                                                data-key="<?= $d['draft_key']; ?>">
+                                            <i class="fas fa-trash"></i> Buang
+                                        </button>
+                                    </td>
+                                </tr>
+                                <?php endforeach; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                <button type="button" class="close ml-3" id="closeDraftBanner" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
+    <?php // ── END BANNER ── ?>
+
     
     <div class="card shadow mb-4">
         <div class="card-header py-3">
@@ -360,7 +431,7 @@
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
-            <?= form_open_multipart('returns/import_excel'); ?>
+            <?= form_open_multipart('returns/import_preview'); ?>
                 <div class="modal-body">
                     <div class="alert alert-warning small">
                         <strong>Format Excel (Mulai dari Baris ke-2):</strong><br>
@@ -432,6 +503,67 @@
     </div>
 </div>
 <script>
+    // ── DRAFT BANNER ACTIONS ──
+
+    // Tombol X untuk sembunyikan banner sementara (tidak hapus draft)
+    const closeBanner = document.getElementById('closeDraftBanner');
+        if (closeBanner) {
+            closeBanner.addEventListener('click', function() {
+                document.getElementById('draftBanner').style.display = 'none';
+            });
+        }
+
+    // Tombol Buang Draft
+    document.addEventListener('click', function(e) {
+        const btn = e.target.closest('.btn-discard-draft');
+        if (!btn) return;
+
+        const draftKey = btn.dataset.key;
+
+        Swal.fire({
+            title: 'Buang draft ini?',
+            html: `Draft <code>${draftKey}</code> akan dihapus permanen.<br>Data yang belum dipublish akan hilang.`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#e3342f',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: '<i class="fas fa-trash"></i> Ya, Buang!',
+            cancelButtonText: 'Batal'
+        }).then(result => {
+            if (!result.isConfirmed) return;
+
+            const csrfName = '<?= $this->security->get_csrf_token_name(); ?>';
+            const csrfHash = '<?= $this->security->get_csrf_hash(); ?>';
+
+            fetch('<?= base_url('returns/import_draft_cancel_ajax'); ?>', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: `draft_key=${encodeURIComponent(draftKey)}&${csrfName}=${csrfHash}`
+            })
+            .then(r => r.json())
+            .then(res => {
+                if (res.success) {
+                    // Hapus baris dari tabel banner
+                    btn.closest('tr').remove();
+
+                    // Jika tidak ada draft tersisa, sembunyikan seluruh banner
+                    const remaining = document.querySelectorAll('.btn-discard-draft').length;
+                    if (remaining === 0) {
+                        const banner = document.getElementById('draftBanner');
+                        if (banner) banner.remove();
+                    }
+
+                    Swal.fire({
+                        toast: true, position: 'top-end', icon: 'success',
+                        title: 'Draft berhasil dibuang', showConfirmButton: false, timer: 2000
+                    });
+                }
+            });
+        });
+    });
     document.addEventListener('DOMContentLoaded', function() {
         // 1. Simpan template status original saat halaman pertama kali dimuat
         const originalStatusHtml = $('#modal_status').html();

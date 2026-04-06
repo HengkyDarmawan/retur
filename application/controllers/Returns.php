@@ -22,16 +22,13 @@ class Returns extends MY_Controller {
     }
 
     public function index() {
-        // 1. Cek Hak Akses
         if (!user_can('view', 'returns')) {
             $this->session->set_flashdata(['message' => 'Akses ditolak!', 'type' => 'error']);
             redirect('dashboard');
         }
 
-        // Ambil daftar hari libur dari model
         $holidays = $this->m_retur->get_holidays_array();
 
-        // 2. Tangkap Filter dari UI
         $filter = [
             'start_date' => $this->input->get('start_date', TRUE),
             'end_date'   => $this->input->get('end_date', TRUE),
@@ -41,42 +38,39 @@ class Returns extends MY_Controller {
             'export'     => $this->input->get('export', TRUE)
         ];
 
-        // Ambil data dasar (Sudah terfilter Tanggal & Status di SQL via Model)
-        $raw_returns = $this->m_retur->get_all_returns($filter); 
-        
+        $raw_returns = $this->m_retur->get_all_returns($filter);
         $processed_returns = [];
         $today = date('Y-m-d');
 
         foreach ($raw_returns as $row) {
-            // Hitung Aging (Hari Kerja)
             $age = $this->m_retur->count_working_days($row['received_date'], $today, $holidays);
             $row['working_day_age'] = $age;
-
-            // --- LOGIKA FILTER LAMA DI SISTEM (DURATION) ---
-            // Jika user memilih dropdown lama di sistem
-            if (!empty($filter['duration'])) {
-                if ($age < (int)$filter['duration']) {
-                    continue; // Lewati jika tidak mencapai minimal hari yang dipilih
-                }
-            }
-
+            if (!empty($filter['duration']) && $age < (int)$filter['duration']) continue;
             $processed_returns[] = $row;
         }
 
-        // 3. JIKA USER KLIK TOMBOL EXCEL
         if ($filter['export'] === 'excel') {
             $this->export_excel($processed_returns);
-            return; 
+            return;
         }
 
-        // 4. DATA UNTUK TAMPILAN WEB
-        $data['returns'] = $processed_returns;
-        $data['title']   = "Manajemen Retur & Klaim";
-        $data['filter']  = $filter;
-        $data['return_types'] = $this->db->get('m_return_types')->result_array(); // <-- Tambahan
-        $data['couriers'] = $this->db->get('m_expeditions')->result_array();
-        $data['stores'] = $this->db->get('m_stores')->result_array();
-        $data['platforms'] = $this->db->get('m_platforms')->result_array();
+        // ── TAMBAHAN: Cek draft aktif milik user ini ──
+        $user_id        = $this->session->userdata('user_id');
+        $active_drafts  = $this->m_retur->get_all_draft_keys($user_id);
+        // Cek juga dari session (draft yang sedang aktif dikerjakan)
+        $active_draft_key = $this->session->userdata('active_draft_key');
+
+        $data['active_drafts']    = $active_drafts;
+        $data['active_draft_key'] = $active_draft_key;
+        // ── END TAMBAHAN ──
+
+        $data['returns']      = $processed_returns;
+        $data['title']        = "Manajemen Retur & Klaim";
+        $data['filter']       = $filter;
+        $data['return_types'] = $this->db->get('m_return_types')->result_array();
+        $data['couriers']     = $this->db->get('m_expeditions')->result_array();
+        $data['stores']       = $this->db->get('m_stores')->result_array();
+        $data['platforms']    = $this->db->get('m_platforms')->result_array();
 
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -84,26 +78,45 @@ class Returns extends MY_Controller {
         $this->load->view('returns/index', $data);
         $this->load->view('templates/footer');
     }
+    public function resume_draft($draft_key) {
+        if (!user_can('add', 'returns')) { redirect('returns'); }
+
+        // Validasi draft_key milik user ini
+        $user_id = $this->session->userdata('user_id');
+        $draft   = $this->m_retur->get_import_draft($draft_key);
+
+        if (empty($draft)) {
+            $this->session->set_flashdata(['message' => 'Draft tidak ditemukan.', 'type' => 'error']);
+            redirect('returns');
+        }
+
+        // Set ke session lalu redirect ke preview
+        $this->session->set_userdata('active_draft_key', $draft_key);
+        redirect('returns/import_draft_view');
+    }
     //import
-    public function import_excel() {
+    // ============================================================
+    // STEP 1: Upload Excel → Parse → Simpan ke DB sebagai Draft
+    // ============================================================
+    public function import_preview() {
         if (!user_can('add', 'returns')) {
             $this->session->set_flashdata(['message' => 'Akses ditolak!', 'type' => 'error']);
             redirect('returns');
         }
 
-        $status_global      = $this->input->post('status');
-        $type_id_global     = $this->input->post('type_id');
-        $warranty_duration  = $this->input->post('warranty_duration');
-        $store_id_global    = $this->input->post('store_id');
-        $platform_id_global = $this->input->post('platform_id');
-        $user_id            = $this->session->userdata('user_id');
+        $global = [
+            'status'            => $this->input->post('status'),
+            'type_id'           => $this->input->post('type_id'),
+            'warranty_duration' => (float)$this->input->post('warranty_duration'),
+            'store_id'          => $this->input->post('store_id'),
+            'platform_id'       => $this->input->post('platform_id'),
+        ];
 
         $config['upload_path']   = './assets/uploads/';
         $config['allowed_types'] = 'xls|xlsx';
         $config['encrypt_name']  = TRUE;
-        
         $this->load->library('upload', $config);
-        
+
         if (!$this->upload->do_upload('file_excel')) {
             $this->session->set_flashdata(['message' => $this->upload->display_errors(), 'type' => 'error']);
             redirect('returns');
@@ -115,93 +128,260 @@ class Returns extends MY_Controller {
         try {
             $spreadsheet = \PhpOffice\PhpSpreadsheet\IOFactory::load($file_path);
             $sheetData   = $spreadsheet->getActiveSheet()->toArray(null, true, true, true);
-            
-            $bulk_data = [];
-            $current_seq = (int)$this->m_retur->generate_daily_sequence();
+
+            $draft_rows = [];
+
+            $fixDate = function($val) {
+                if (empty($val)) return date('Y-m-d');
+                if (is_numeric($val)) {
+                    return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($val)->format('Y-m-d');
+                }
+                $bln_indo = [
+                    'januari'=>'january','februari'=>'february','maret'=>'march',
+                    'april'=>'april','mei'=>'may','juni'=>'june','juli'=>'july',
+                    'agustus'=>'august','september'=>'september','oktober'=>'october',
+                    'november'=>'november','desember'=>'december'
+                ];
+                $clean_val = strtolower(trim($val));
+                $timestamp = strtotime(str_replace('/', '-', strtr($clean_val, $bln_indo)));
+                return $timestamp ? date('Y-m-d', $timestamp) : date('Y-m-d');
+            };
 
             for ($i = 2; $i <= count($sheetData); $i++) {
                 $row = $sheetData[$i];
                 if (empty($row['A'])) continue;
 
-                // --- LOGIKA BARU: PENERJEMAH TANGGAL INDONESIA ---
-                $fixDate = function($val) {
-                    if (empty($val)) return date('Y-m-d');
-                    
-                    // 1. Jika formatnya angka (Serial Date Excel)
-                    if (is_numeric($val)) {
-                        return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject($val)->format('Y-m-d');
-                    }
-                    
-                    // 2. Jika formatnya Teks (Januari, Agustus, dsb)
-                    $bln_indo = [
-                        'januari' => 'january', 'februari' => 'february', 'maret' => 'march',
-                        'april' => 'april', 'mei' => 'may', 'juni' => 'june',
-                        'juli' => 'july', 'agustus' => 'august', 'september' => 'september',
-                        'oktober' => 'october', 'november' => 'november', 'desember' => 'december'
-                    ];
-                    
-                    // Bersihkan string dan ubah ke lowercase untuk pencocokan
-                    $clean_val = strtolower(trim($val));
-                    $translated_val = strtr($clean_val, $bln_indo); // Tukar indo ke inggris
-                    
-                    // Coba parsing setelah diterjemahkan
-                    $timestamp = strtotime(str_replace('/', '-', $translated_val));
-                    
-                    return $timestamp ? date('Y-m-d', $timestamp) : date('Y-m-d');
-                };
+                $received_date = $fixDate($row['C']);
+                $purchase_date = $fixDate($row['D']);
+                $vendor_name   = trim($row['F'] ?? '') ?: '-';
+                $months        = $global['warranty_duration'] * 12;
+                $warranty_expiry = ($global['warranty_duration'] > 0)
+                    ? date('Y-m-d', strtotime("+$months months", strtotime($purchase_date)))
+                    : $purchase_date;
 
-                $received_date = $fixDate($row['C']); 
-                $purchase_date = $fixDate($row['D']); 
-
-                // Handling Vendor Kosong -> "-"
-                $vendor_name = isset($row['F']) ? trim($row['F']) : '';
-                $vendor_id   = $this->m_retur->get_or_create_vendor($vendor_name);
-
-                // Generate Nomor Retur
-                $clean_order_ref = preg_replace('/[^a-zA-Z0-9]/', '', $row['A']);
-                $last_4_order    = strtoupper(substr($clean_order_ref, -4));
-                $return_number   = "RET-" . date('Ymd') . "-" . $last_4_order . "-" . str_pad($current_seq, 4, '0', STR_PAD_LEFT);
-                $current_seq++;
-
-                // Hitung Masa Garansi
-                $months = $warranty_duration * 12;
-                $warranty_expiry = ($warranty_duration > 0) 
-                                ? date('Y-m-d', strtotime("+$months months", strtotime($purchase_date))) 
-                                : $purchase_date;
-
-                $bulk_data[] = [
-                    'header' => [
-                        'return_number' => $return_number,
-                        'order_number'  => $row['A'],
-                        'store_id'      => $store_id_global,
-                        'platform_id'   => $platform_id_global,
-                        'type_id'       => $type_id_global,
-                        'customer_name' => $row['B'] ?? '-',
-                        'purchase_date' => $purchase_date,
-                        'received_date' => $received_date,
-                        'status'        => $status_global,
-                        'created_by'    => $user_id
-                    ],
-                    'item' => [
-                        'product_name'    => $row['E'] ?? '-',
-                        'vendor_id'       => $vendor_id,
-                        'warranty_expiry' => $warranty_expiry
-                    ]
+                $draft_rows[] = [
+                    'order_number'   => $row['A'],
+                    'customer_name'  => $row['B'] ?? '-',
+                    'received_date'  => $received_date,
+                    'purchase_date'  => $purchase_date,
+                    'product_name'   => $row['E'] ?? '-',
+                    'vendor_name'    => $vendor_name,
+                    'warranty_expiry'=> $warranty_expiry,
+                    'status'         => $global['status'],
+                    'type_id'        => $global['type_id'],
+                    'store_id'       => $global['store_id'],
+                    'platform_id'    => $global['platform_id'],
                 ];
             }
 
-            if (!empty($bulk_data)) {
-                $this->m_retur->insert_bulk_returns($bulk_data);
-                $this->session->set_flashdata(['message' => count($bulk_data) . ' data berhasil diimport', 'type' => 'success']);
-            }
+            // Generate draft_key unik & simpan ke DB
+            $draft_key = 'DRAFT-' . date('Ymd') . '-' . strtoupper(substr(md5(uniqid()), 0, 8));
+            $this->m_retur->save_import_draft($draft_key, $draft_rows);
+
+            // Simpan draft_key aktif ke session (hanya key-nya, bukan datanya)
+            $this->session->set_userdata('active_draft_key', $draft_key);
+
+            $this->session->set_flashdata([
+                'message' => count($draft_rows) . ' baris berhasil diparse. Silakan review & edit sebelum publish.',
+                'type'    => 'info'
+            ]);
 
         } catch (Exception $e) {
             $this->session->set_flashdata(['message' => 'Error: ' . $e->getMessage(), 'type' => 'error']);
+            redirect('returns');
         }
 
         if (file_exists($file_path)) unlink($file_path);
+        redirect('returns/import_draft_view');
+    }
+
+    // ============================================================
+    // STEP 2: Tampilkan halaman preview
+    // ============================================================
+    public function import_draft_view() {
+        if (!user_can('add', 'returns')) { redirect('returns'); }
+
+        $draft_key = $this->session->userdata('active_draft_key');
+
+        // Jika tidak ada draft aktif, cek apakah ada draft tersimpan milik user ini
+        if (empty($draft_key)) {
+            $this->session->set_flashdata(['message' => 'Tidak ada draft aktif. Silakan upload Excel terlebih dahulu.', 'type' => 'warning']);
+            redirect('returns');
+        }
+
+        $draft = $this->m_retur->get_import_draft($draft_key);
+
+        if (empty($draft)) {
+            $this->session->set_flashdata(['message' => 'Draft tidak ditemukan atau sudah dipublish.', 'type' => 'warning']);
+            redirect('returns');
+        }
+
+        $data['draft']        = $draft;
+        $data['draft_key']    = $draft_key;
+        $data['title']        = 'Preview Import Retur';
+        $data['return_types'] = $this->db->get('m_return_types')->result_array();
+        $data['stores']       = $this->db->get('m_stores')->result_array();
+        $data['platforms']    = $this->db->get('m_platforms')->result_array();
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('returns/import_draft', $data);
+        $this->load->view('templates/footer');
+    }
+
+    // ============================================================
+    // AJAX: Save/Update draft ke DB (tanpa publish)
+    // ============================================================
+    public function import_draft_save() {
+        if (!$this->input->is_ajax_request()) { show_404(); }
+
+        header('Content-Type: application/json');
+
+        $draft_key = $this->input->post('draft_key');
+        $rows_json = $this->input->post('rows');
+        $rows      = json_decode($rows_json, true);
+
+        if (empty($draft_key) || empty($rows)) {
+            echo json_encode(['success' => false, 'message' => 'Data tidak valid']);
+            return;
+        }
+
+        $result = $this->m_retur->save_import_draft($draft_key, $rows);
+        echo json_encode([
+            'success'   => (bool)$result,
+            'saved_at'  => date('H:i:s'),
+            'csrf_hash' => $this->security->get_csrf_hash() // kirim hash baru ke JS
+        ]);
+    }
+
+    // ============================================================
+    // AJAX: Hapus 1 baris dari draft
+    // ============================================================
+    public function import_draft_delete_row() {
+        if (!$this->input->is_ajax_request()) { show_404(); }
+
+        header('Content-Type: application/json');
+
+        $draft_key = $this->input->post('draft_key');
+        $row_index = (int)$this->input->post('row_index');
+        $remaining = $this->m_retur->delete_draft_row($draft_key, $row_index);
+
+        echo json_encode([
+            'success' => true,
+            'remaining' => $remaining, 
+            'csrf_hash' => $this->security->get_csrf_hash()
+        ]);
+    }
+
+    // ============================================================
+    // AJAX: Publish draft → Insert ke tr_returns
+    // ============================================================
+    public function import_publish() {
+        if (!$this->input->is_ajax_request()) { show_404(); }
+
+        header('Content-Type: application/json');
+
+        $draft_key = $this->input->post('draft_key');
+        if (empty($draft_key)) {
+            echo json_encode(['success' => false, 'message' => 'Draft key tidak ditemukan']);
+            return;
+        }
+
+        $rows    = $this->m_retur->get_import_draft($draft_key);
+        $user_id = $this->session->userdata('user_id');
+
+        if (empty($rows)) {
+            echo json_encode(['success' => false, 'message' => 'Draft kosong atau tidak ditemukan']);
+            return;
+        }
+
+        $bulk_data   = [];
+        $current_seq = (int)$this->m_retur->generate_daily_sequence();
+
+        foreach ($rows as $row) {
+            $clean_order_ref = preg_replace('/[^a-zA-Z0-9]/', '', $row['order_number']);
+            $last_4_order    = strtoupper(substr($clean_order_ref, -4));
+            $return_number   = "RET-" . date('Ymd') . "-" . $last_4_order . "-" . str_pad($current_seq, 4, '0', STR_PAD_LEFT);
+            $current_seq++;
+
+            $vendor_id = $this->m_retur->get_or_create_vendor($row['vendor_name']);
+
+            $bulk_data[] = [
+                'header' => [
+                    'return_number'  => $return_number,
+                    'order_number'   => $row['order_number'],
+                    'store_id'       => $row['store_id'],
+                    'platform_id'    => $row['platform_id'],
+                    'type_id'        => $row['type_id'],
+                    'customer_name'  => $row['customer_name'],
+                    'customer_wa'    => '',
+                    'purchase_date'  => $row['purchase_date'],
+                    'received_date'  => $row['received_date'],
+                    'status'         => $row['status'],
+                    'created_by'     => $user_id,
+                ],
+                'item' => [
+                    'product_name'   => $row['product_name'],
+                    'vendor_id'      => $vendor_id,
+                    'warranty_expiry'=> $row['warranty_expiry'],
+                ]
+            ];
+        }
+
+        $result = $this->m_retur->insert_bulk_returns($bulk_data);
+
+        if ($result) {
+            // Hapus draft dari DB & bersihkan session
+            $this->m_retur->delete_import_draft($draft_key);
+            $this->session->unset_userdata('active_draft_key');
+            echo json_encode([
+                'success' => true,
+                'count' => count($bulk_data),
+                'csrf_hash' => $this->security->get_csrf_hash()    
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false, 
+                'message' => 'Gagal insert ke database',
+                'csrf_hash' => $this->security->get_csrf_hash()
+            ]);
+        }
+    }
+
+    // ============================================================
+    // Batalkan draft
+    // ============================================================
+    // Method baru — AJAX version of cancel
+    public function import_draft_cancel_ajax() {
+        if (!$this->input->is_ajax_request()) { show_404(); }
+        
+        header('Content-Type: application/json');
+        
+        $draft_key = $this->input->post('draft_key');
+        if (!empty($draft_key)) {
+            $this->m_retur->delete_import_draft($draft_key);
+        }
+        $this->session->unset_userdata('active_draft_key');
+        
+        echo json_encode([
+            'success'   => true,
+            'csrf_hash' => $this->security->get_csrf_hash()
+        ]);
+    }
+
+    // Method lama tetap ada untuk fallback URL langsung
+    public function import_draft_cancel() {
+        $draft_key = $this->session->userdata('active_draft_key');
+        if (!empty($draft_key)) {
+            $this->m_retur->delete_import_draft($draft_key);
+            $this->session->unset_userdata('active_draft_key');
+        }
+        $this->session->set_flashdata(['message' => 'Import dibatalkan dan draft dihapus.', 'type' => 'warning']);
         redirect('returns');
     }
+    
+
 
     //ekspor data
     private function export_excel($data_to_export) {

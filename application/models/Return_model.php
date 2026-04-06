@@ -55,12 +55,14 @@ class Return_model extends CI_Model {
             m_stores.store_name, 
             m_platforms.platform_name, 
             tr_return_items.product_name, 
-            tr_return_items.warranty_expiry
+            tr_return_items.warranty_expiry,
+            m_expeditions.expedition_name
         '); // Saya hapus vendor_name karena bikin error 1054
         $this->db->from('tr_returns');
         $this->db->join('m_stores', 'm_stores.id = tr_returns.store_id', 'left');
         $this->db->join('m_platforms', 'm_platforms.id = tr_returns.platform_id', 'left');
         $this->db->join('tr_return_items', 'tr_return_items.return_id = tr_returns.id', 'left');
+        $this->db->join('m_expeditions', 'm_expeditions.id = tr_returns.courier_id', 'left');
         $this->db->where('tr_returns.return_number', $no_retur);
         
         return $this->db->get()->row_array();
@@ -155,6 +157,77 @@ class Return_model extends CI_Model {
             $next_num = "0001";
         }
         return $prefix . $next_num;
+    }
+    //new import model
+    // ============================================================
+    // DRAFT MANAGEMENT
+    // ============================================================
+
+    public function save_import_draft($draft_key, $rows) {
+        // Hapus draft lama dengan key yang sama dulu
+        $this->db->delete('tr_import_drafts', ['draft_key' => $draft_key]);
+        
+        if (empty($rows)) return true;
+        
+        $user_id     = $this->session->userdata('user_id');
+        $insert_data = [];
+
+        foreach ($rows as $i => $row) {
+            $insert_data[] = [
+                'draft_key'      => $draft_key,
+                'row_index'      => $i,
+                'order_number'   => $row['order_number']   ?? '',
+                'customer_name'  => $row['customer_name']  ?? '',
+                'product_name'   => $row['product_name']   ?? '',
+                'received_date'  => $row['received_date']  ?? date('Y-m-d'),
+                'purchase_date'  => $row['purchase_date']  ?? date('Y-m-d'),
+                'warranty_expiry'=> $row['warranty_expiry']?? date('Y-m-d'),
+                'vendor_name'    => $row['vendor_name']    ?? '-',
+                'store_id'       => $row['store_id']       ?? null,
+                'platform_id'    => $row['platform_id']    ?? null,
+                'type_id'        => $row['type_id']        ?? null,
+                'status'         => $row['status']         ?? 'received',
+                'created_by'     => $user_id,
+            ];
+        }
+
+        return $this->db->insert_batch('tr_import_drafts', $insert_data);
+    }
+
+    public function get_import_draft($draft_key) {
+        return $this->db->where('draft_key', $draft_key)
+                        ->order_by('row_index', 'ASC')
+                        ->get('tr_import_drafts')
+                        ->result_array();
+    }
+
+    public function get_all_draft_keys($user_id) {
+        // Ambil semua draft milik user ini (grouped by draft_key)
+        $this->db->select('draft_key, COUNT(*) as total_rows, MIN(created_at) as created_at');
+        $this->db->where('created_by', $user_id);
+        $this->db->group_by('draft_key');
+        $this->db->order_by('created_at', 'DESC');
+        return $this->db->get('tr_import_drafts')->result_array();
+    }
+
+    public function delete_import_draft($draft_key) {
+        return $this->db->delete('tr_import_drafts', ['draft_key' => $draft_key]);
+    }
+
+    public function delete_draft_row($draft_key, $row_index) {
+        $this->db->delete('tr_import_drafts', [
+            'draft_key' => $draft_key, 
+            'row_index'  => $row_index
+        ]);
+        // Re-index row_index supaya urut lagi
+        $rows = $this->get_import_draft($draft_key);
+        if (!empty($rows)) {
+            foreach ($rows as $i => $row) {
+                $this->db->where('id', $row['id'])
+                        ->update('tr_import_drafts', ['row_index' => $i]);
+            }
+        }
+        return count($rows);
     }
 
     /**
