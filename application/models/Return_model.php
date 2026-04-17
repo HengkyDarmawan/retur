@@ -424,4 +424,39 @@ class Return_model extends CI_Model {
         $this->db->trans_complete(); // Selesaikan / Commit transaksi
         return $this->db->trans_status();
     }
+    /**
+     * Update status massal dengan history
+     * $ids = array of tr_returns.id
+     */
+    public function bulk_update_status($ids, $status, $keterangan) {
+        if (empty($ids) || empty($status)) return false;
+
+        $this->db->trans_start();
+        $user_id = $this->session->userdata('user_id');
+        $now     = date('Y-m-d H:i:s');
+
+        // 1. Update semua header sekaligus
+        $this->db->where_in('id', $ids);
+        $this->db->update('tr_returns', [
+            'status'     => $status,
+            'updated_at' => $now,
+            'updated_by' => $user_id,
+        ]);
+
+        // 2. Insert history per item
+        $history_batch = [];
+        foreach ($ids as $rid) {
+            $history_batch[] = [
+                'return_id'  => $rid,
+                'status'     => $status,
+                'keterangan' => !empty($keterangan) ? $keterangan : 'Update status massal.',
+                'created_by' => $user_id,
+                'created_at' => $now,
+            ];
+        }
+        $this->db->insert_batch('tr_return_history', $history_batch);
+
+        $this->db->trans_complete();
+        return $this->db->trans_status();
+    }
 } // Penutup Class Return_model

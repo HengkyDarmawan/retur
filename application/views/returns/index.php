@@ -152,11 +152,59 @@
                 <i class="fas fa-plus fa-sm"></i> Tambah Retur
             </a>
         </div>
+        <!-- Bulk Action Toolbar — muncul hanya saat ada yang dicentang -->
+        <div id="bulkToolbar" class="card shadow mb-2 border-left-info" style="display:none;">
+            <div class="card-body py-2 px-3">
+                <div class="d-flex align-items-center flex-wrap gap-2">
+                    <span class="font-weight-bold text-info mr-3">
+                        <i class="fas fa-check-square mr-1"></i>
+                        <span id="selectedCount">0</span> item dipilih
+                    </span>
+                    <select id="bulkStatusSelect" class="form-control form-control-sm mr-2" style="width:220px">
+                        <option value="">-- Pilih Status Baru --</option>
+                        <!-- Status normal -->
+                        <optgroup label="Status Normal">
+                            <option value="received">Received</option>
+                            <option value="checking">Checking</option>
+                            <option value="to_vendor">To Vendor</option>
+                            <option value="processing">Processing</option>
+                            <option value="from_vendor">From Vendor</option>
+                            <option value="ready">Ready</option>
+                            <option value="shipped">Shipped</option>
+                            <option value="completed">Completed</option>
+                            <option value="rejected">Rejected</option>
+                        </optgroup>
+                        <!-- Status complain -->
+                        <optgroup label="Status Komplain">
+                            <option value="user complain">User Complain</option>
+                            <option value="aju banding">Aju Banding</option>
+                            <option value="menang banding">Menang Banding</option>
+                            <option value="kalah banding">Kalah Banding</option>
+                        </optgroup>
+                    </select>
+                    <input type="text" id="bulkKeterangan" class="form-control form-control-sm mr-2"
+                        placeholder="Keterangan (opsional)" style="width:220px">
+                    <button type="button" id="btnBulkUpdate" class="btn btn-info btn-sm mr-2">
+                        <i class="fas fa-sync-alt mr-1"></i> Update Sekarang
+                    </button>
+                    <button type="button" id="btnBulkCancel" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-times mr-1"></i> Batal Pilih
+                    </button>
+                </div>
+            </div>
+        </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
                     <thead>
                         <tr>
+                             <th width="40" class="text-center">
+                                <!-- Checkbox select all -->
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="checkAll">
+                                    <label class="custom-control-label" for="checkAll"></label>
+                                </div>
+                            </th>
                             <th>No.</th>
                             <th>No. Retur</th>
                             <th>Tgl Masuk</th>
@@ -224,6 +272,15 @@
                             $aging_class = ($selisih >= 21) ? 'text-danger font-weight-bold' : (($selisih >= 14) ? 'text-warning font-weight-bold' : 'text-muted');
                         ?>
                         <tr>
+                            <td class="text-center">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input check-item"
+                                        id="chk_<?= $r['id']; ?>"
+                                        value="<?= $r['id']; ?>"
+                                        data-type="<?= strtolower($r['type_name'] ?? ''); ?>">
+                                    <label class="custom-control-label" for="chk_<?= $r['id']; ?>"></label>
+                                </div>
+                            </td>
                             <td><?= $no++; ?></td>
                             <td>
                                 <span class="badge badge-primary mb-1">#<?= $r['return_number']; ?></span><br>

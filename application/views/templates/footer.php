@@ -162,6 +162,129 @@
                 });
             });
         });
+
+        //newwww
+        // ============================================================
+        // BULK ACTION
+        // ============================================================
+        const BULK_CSRF_NAME = '<?= $this->security->get_csrf_token_name(); ?>';
+        let   bulkCsrfHash   = '<?= $this->security->get_csrf_hash(); ?>';
+
+        function getSelectedIds() {
+            return Array.from(document.querySelectorAll('.check-item:checked'))
+                        .map(el => el.value);
+        }
+
+        function updateBulkToolbar() {
+            const ids     = getSelectedIds();
+            const toolbar = document.getElementById('bulkToolbar');
+            const counter = document.getElementById('selectedCount');
+
+            if (ids.length > 0) {
+                toolbar.style.display = 'block';
+                counter.textContent   = ids.length;
+            } else {
+                toolbar.style.display = 'none';
+            }
+        }
+
+        // Select All
+        document.getElementById('checkAll').addEventListener('change', function() {
+            document.querySelectorAll('.check-item').forEach(cb => {
+                cb.checked = this.checked;
+            });
+            updateBulkToolbar();
+        });
+
+        // Per-item change
+        document.addEventListener('change', function(e) {
+            if (e.target.classList.contains('check-item')) {
+                updateBulkToolbar();
+                // Sync checkAll state
+                const all   = document.querySelectorAll('.check-item').length;
+                const checked = document.querySelectorAll('.check-item:checked').length;
+                document.getElementById('checkAll').indeterminate = (checked > 0 && checked < all);
+                document.getElementById('checkAll').checked       = (checked === all);
+            }
+        });
+
+        // Batal pilih
+        document.getElementById('btnBulkCancel').addEventListener('click', function() {
+            document.querySelectorAll('.check-item, #checkAll').forEach(cb => cb.checked = false);
+            document.getElementById('checkAll').indeterminate = false;
+            updateBulkToolbar();
+        });
+
+        // Eksekusi bulk update
+        document.getElementById('btnBulkUpdate').addEventListener('click', function() {
+            const ids    = getSelectedIds();
+            const status = document.getElementById('bulkStatusSelect').value;
+            const ket    = document.getElementById('bulkKeterangan').value;
+
+            if (ids.length === 0) {
+                Swal.fire('Peringatan', 'Tidak ada data yang dipilih.', 'warning');
+                return;
+            }
+            if (!status) {
+                Swal.fire('Peringatan', 'Pilih status baru terlebih dahulu.', 'warning');
+                return;
+            }
+
+            Swal.fire({
+                title             : `Update ${ids.length} data?`,
+                html              : `Status akan diubah menjadi <strong>${status}</strong>.<br>
+                                    Perubahan akan tercatat di history masing-masing retur.`,
+                icon              : 'question',
+                showCancelButton  : true,
+                confirmButtonColor: '#36b9cc',
+                cancelButtonColor : '#6c757d',
+                confirmButtonText : '<i class="fas fa-sync-alt"></i> Ya, Update!',
+                cancelButtonText  : 'Batal',
+            }).then(result => {
+                if (!result.isConfirmed) return;
+
+                Swal.fire({
+                    title        : 'Memproses...',
+                    html         : `Mengupdate <b>${ids.length}</b> data...`,
+                    allowOutsideClick: false,
+                    didOpen      : () => Swal.showLoading()
+                });
+
+                const body = [
+                    `ids=${encodeURIComponent(JSON.stringify(ids))}`,
+                    `status=${encodeURIComponent(status)}`,
+                    `keterangan=${encodeURIComponent(ket)}`,
+                    `${BULK_CSRF_NAME}=${bulkCsrfHash}`
+                ].join('&');
+
+                fetch('<?= base_url('returns/bulk_update'); ?>', {
+                    method : 'POST',
+                    headers: {
+                        'Content-Type'    : 'application/x-www-form-urlencoded',
+                        'X-Requested-With': 'XMLHttpRequest'
+                    },
+                    body
+                })
+                .then(r => r.json())
+                .then(res => {
+                    if (res.csrf_hash) bulkCsrfHash = res.csrf_hash;
+
+                    if (res.success) {
+                        Swal.fire({
+                            icon             : 'success',
+                            title            : 'Berhasil!',
+                            html             : `<b>${res.count}</b> data berhasil diupdate ke status <b>${status}</b>.`,
+                            confirmButtonColor: '#36b9cc',
+                            timer            : 2500,
+                            timerProgressBar : true,
+                        }).then(() => window.location.reload());
+                    } else {
+                        Swal.fire('Gagal!', res.message || 'Terjadi kesalahan.', 'error');
+                    }
+                })
+                .catch(() => Swal.fire('Error!', 'Koneksi ke server gagal.', 'error'));
+            });
+        });
     </script>
     
     

@@ -953,4 +953,41 @@ class Returns extends MY_Controller {
 
         redirect('returns');
     }
+
+    // ============================================================
+    // AJAX: Bulk update status
+    // ============================================================
+    public function bulk_update() {
+        if (!$this->input->is_ajax_request()) { show_404(); }
+        if (!user_can('edit', 'returns')) {
+            echo json_encode(['success' => false, 'message' => 'Akses ditolak']);
+            return;
+        }
+
+        header('Content-Type: application/json');
+
+        $ids_raw    = $this->input->post('ids');        // JSON string "[1,2,3]"
+        $status     = $this->input->post('status');
+        $keterangan = $this->input->post('keterangan');
+
+        $ids = json_decode($ids_raw, true);
+
+        if (empty($ids) || !is_array($ids) || empty($status)) {
+            echo json_encode(['success' => false, 'message' => 'Data tidak valid']);
+            return;
+        }
+
+        // Sanitasi: pastikan semua ID adalah integer
+        $ids = array_map('intval', $ids);
+        $ids = array_filter($ids); // hapus 0/null
+
+        $result = $this->m_retur->bulk_update_status($ids, $status, $keterangan);
+
+        echo json_encode([
+            'success'   => (bool)$result,
+            'count'     => count($ids),
+            'message'   => $result ? count($ids) . ' data berhasil diupdate' : 'Gagal update',
+            'csrf_hash' => $this->security->get_csrf_hash()
+        ]);
+    }
 }
